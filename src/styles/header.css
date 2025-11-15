@@ -1,0 +1,62 @@
+.sheet-header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: flex-start;
+  gap: 2rem;
+  border-bottom: 2px solid #000;
+  padding-bottom: 1.5rem;
+  margin-bottom: 2.5rem;
+}
+
+.sheet-header__title {
+  text-align: center;
+}
+
+.sheet-header h1 {
+  margin: 0;
+  font-size: 3.5rem;
+  font-family: "Brush Script MT", "Segoe Script", cursive;
+  font-weight: bold;
+  font-style: italic;
+  line-height: 1;
+}
+
+.title-santas {
+  color: #dc143c;
+}
+
+.title-cheat {
+  color: #000;
+  font-style: normal;
+}
+
+.title-sheet {
+  color: #dc143c;
+}
+
+.sheet-header__artwork {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.santa-hero,
+.santa-stamp {
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.santa-hero {
+  width: 150px;
+  height: 180px;
+  background-image: url("/images/Santa.png");
+}
+
+.santa-stamp {
+  width: 100px;
+  height: 100px;
+  background-image: url("/images/SantaStamp.png");
+  margin-top: 0.5rem;
+}

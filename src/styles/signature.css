@@ -1,0 +1,53 @@
+.sheet-signature {
+  text-align: left;
+  margin-top: 3rem;
+  font-family: Georgia, "Times New Roman", serif;
+  color: #000;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  position: relative;
+  min-height: 160px;
+  padding-right: 0.75rem;
+}
+
+.sheet-signature p {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.sheet-signature p:first-child {
+  font-family: "Brush Script MT", "Segoe Script", cursive;
+  color: #228b22;
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.sheet-signature .mrs-claus {
+  font-size: 1.5rem;
+  color: #dc143c;
+  font-family: "Brush Script MT", "Segoe Script", cursive;
+  font-style: italic;
+  font-weight: normal;
+}
+
+.sheet-signature__actions {
+  width: 100%;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.sheet-signature__button {
+  margin-top: 0.5rem;
+}
+
+.sheet-signature .santa-stamp {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 140px;
+  height: 140px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}

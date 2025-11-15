@@ -1,0 +1,93 @@
+.sheet-form {
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding-right: 0.75rem;
+  padding-left: 0.75rem;
+}
+
+.sheet-form__grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.sheet-form__question {
+  margin-bottom: 1.5rem;
+}
+
+.sheet-form__question-label {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1rem;
+  font-weight: bold;
+  color: #000;
+  margin-bottom: 0.25rem;
+  display: block;
+}
+
+.sheet-form__answer-line {
+  border: none;
+  border-bottom: 1px solid #333;
+  width: 100%;
+  padding: 0.35rem 0.25rem;
+  font-size: 0.95rem;
+  font-family: Arial, sans-serif;
+  color: #000;
+  background: transparent;
+  outline: none;
+  margin-bottom: 0.15rem;
+  line-height: 1.4;
+}
+
+.sheet-form__textarea {
+  border: 1px solid #333;
+  width: 100%;
+  padding: 0.35rem 0.25rem;
+  font-size: 0.95rem;
+  font-family: Arial, sans-serif;
+  color: #000;
+  background: transparent;
+  outline: none;
+  resize: vertical;
+  min-height: 60px;
+  line-height: 1.4;
+}
+
+.sheet-form__status {
+  min-height: 1.5rem;
+  font-family: Arial, sans-serif;
+  font-size: 0.95rem;
+}
+
+.success {
+  color: #228b22;
+}
+
+.error {
+  color: #dc143c;
+}
+
+.sheet-form button {
+  margin-top: 2rem;
+  padding: 0.75rem 2.5rem;
+  background: #228b22;
+  color: white;
+  border: none;
+  border-radius: 0.25rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.sheet-form button:hover:not(:disabled) {
+  background: #1a6b1a;
+}
+
+.sheet-form button:disabled {
+  background: #999;
+  cursor: not-allowed;
+  opacity: 0.6;
+}

@@ -1,49 +1,73 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Schema } from "../amplify/data/resource";
-import { useAuthenticator } from '@aws-amplify/ui-react';
+import { useAuthenticator } from "@aws-amplify/ui-react";
 import { generateClient } from "aws-amplify/data";
+import { DataManagementPanel } from "./features/admin";
+import { SheetEditor } from "./features/sheets";
+import { adminEmails } from "./config/adminConfig";
 
 const client = generateClient<Schema>();
 
 function App() {
-  const [todos, setTodos] = useState<Array<Schema["Todo"]["type"]>>([]);
+  const [sheets, setSheets] = useState<Array<Schema["SantasSheet"]["type"]>>([]);
   const { user, signOut } = useAuthenticator();
+  const isAdmin = useMemo(() => {
+    const loginId = user?.signInDetails?.loginId ?? "";
+    return adminEmails.includes(loginId.toLowerCase());
+  }, [user?.signInDetails?.loginId]);
 
   useEffect(() => {
-    client.models.Todo.observeQuery().subscribe({
-      next: (data) => setTodos([...data.items]),
+    const subscription = client.models.SantasSheet.observeQuery().subscribe({
+      next: (data) => setSheets([...data.items]),
     });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  function createTodo() {
-    client.models.Todo.create({ content: window.prompt("Todo content") });
-  }
-    
-  function deleteTodo(id: string) {
-    client.models.Todo.delete({ id })
+  async function createSheet() {
+    await client.models.SantasSheet.create({
+      displayName: user?.signInDetails?.loginId ?? "New friend",
+      year: new Date().getFullYear(),
+    });
   }
 
   return (
-    <main>
-      <h1>{user?.signInDetails?.loginId}'s todos</h1>
-      <button onClick={createTodo}>+ new</button>
-      <ul>
-        {todos.map((todo) => (
-          <li 
-          onClick={() => deleteTodo(todo.id)}
-          key={todo.id}>{todo.content}
-          </li>
-        ))}
-      </ul>
-      <div>
-        🥳 App successfully hosted. Try creating a new todo.
-        <br />
-        <a href="https://docs.amplify.aws/react/start/quickstart/#make-frontend-updates">
-          Review next step of this tutorial.
-        </a>
-      </div>
-      <button onClick={signOut}>Sign out</button>
-    </main>
+    <div className="app-shell">
+      <main className="sheet-layout">
+        <div className="sheet-card">
+          <header className="sheet-header">
+            <div className="sheet-header__title">
+              <h1>
+                <span className="title-santas">Santa's</span>
+                <span className="title-cheat">Cheat</span>
+                <span className="title-sheet">Sheet</span>
+              </h1>
+            </div>
+            <div className="sheet-header__artwork">
+              <div className="santa-hero" aria-hidden="true" />
+            </div>
+          </header>
+
+          {sheets.length > 0 ? (
+            <SheetEditor
+              sheet={sheets[0]}
+              fallbackName={user?.signInDetails?.loginId ?? ""}
+            />
+          ) : (
+            <div className="sheet-empty">
+              <p>No sheet yet. Create one to start sharing your favorites.</p>
+              <button onClick={createSheet}>Create my Santa sheet</button>
+            </div>
+          )}
+
+        </div>
+
+        {isAdmin && <DataManagementPanel />}
+        <button className="signout-button" onClick={signOut}>
+          Sign out
+        </button>
+      </main>
+    </div>
   );
 }
 

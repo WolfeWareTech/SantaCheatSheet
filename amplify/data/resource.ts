@@ -7,9 +7,27 @@ specifies that any user authenticated via an API key can "create", "read",
 "update", and "delete" any "Todo" records.
 =========================================================================*/
 const schema = a.schema({
-  Todo: a
+  SantasSheet: a
     .model({
-      content: a.string(),
+      year: a.integer(),
+      displayName: a.string(),
+      favoriteCandySnack: a.string().array(),
+      favoriteScents: a.string().array(),
+      favoriteFastFoodPlaces: a.string().array(),
+      favoriteRestaurants: a.string().array(),
+      favoriteStores: a.string().array(),
+      cellPhoneModel: a.string(),
+      favoriteSaying: a.string(),
+      favoriteSportsTeam: a.string(),
+      favoriteColorsTheme: a.string(),
+      favoriteLogoEmblem: a.string(),
+      anniversaryDate: a.string(),
+      favoritePlaces: a.string().array(),
+      clothingSizes: a.string(),
+      otherFavorites: a.string(),
+      familyDetails: a.string(),
+      wishlistTopItems: a.string().array(),
+      additionalNotes: a.string(),
     })
     .authorization((allow) => [allow.owner()]),
 });
@@ -52,6 +70,6 @@ Fetch records from the database and use them in your frontend component.
 
 /* For example, in a React component, you can use this snippet in your
   function's RETURN statement */
-// const { data: todos } = await client.models.Todo.list()
+// const { data: sheets } = await client.models.SantasSheet.list()
 
-// return <ul>{todos.map(todo => <li key={todo.id}>{todo.content}</li>)}</ul>
+// return <ul>{sheets.map(sheet => <li key={sheet.id}>{sheet.content}</li>)}</ul>
