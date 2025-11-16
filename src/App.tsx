@@ -58,8 +58,8 @@ function App() {
           <header className="sheet-header">
             <div className="sheet-header__title">
               <h1>
-                <span className="title-santas">Santa's</span>
-                <span className="title-cheat">Cheat</span>
+                <span className="title-santas">Santa's</span>{" "}
+                <span className="title-cheat">Cheat</span>{" "}
                 <span className="title-sheet">Sheet</span>
               </h1>
             </div>
