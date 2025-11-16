@@ -29,7 +29,10 @@ const schema = a.schema({
       wishlistTopItems: a.string().array(),
       additionalNotes: a.string(),
     })
-    .authorization((allow) => [allow.owner()]),
+    .authorization((allow) => [
+      allow.owner(),
+      allow.groups(["admin"]),
+    ]),
 });
 
 export type Schema = ClientSchema<typeof schema>;

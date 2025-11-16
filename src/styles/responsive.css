@@ -21,3 +21,73 @@
     font-size: 1.25rem;
   }
 }
+
+@media print {
+  @page {
+    size: Letter portrait;
+    margin: 0.5in;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+  .sheet-card,
+  .sheet-card * {
+    visibility: visible !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .sheet-card {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 1.25rem;
+  }
+  .sheet-header__artwork,
+  .santa-hero,
+  .santa-stamp {
+    display: block !important;
+    visibility: visible !important;
+  }
+  .sheet-header__artwork {
+    flex-direction: row !important;
+    align-items: flex-end !important;
+    gap: 0.25rem !important;
+  }
+  .santa-hero {
+    width: 140px !important;
+    height: 170px !important;
+    margin: 0 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+
+  /* Compact spacing for print only */
+  .sheet-form {
+    gap: 0.25rem;
+  }
+  .sheet-form__question {
+    margin-bottom: 0.25rem;
+  }
+  .sheet-form__question-label {
+    margin-bottom: 0.1rem;
+    font-size: 0.9rem;
+  }
+  .sheet-form__answer-line,
+  .sheet-form__textarea {
+    padding: 0.1rem 0.15rem;
+    font-size: 0.9rem;
+    line-height: 1.2;
+  }
+  .sheet-form__textarea {
+    overflow: visible !important;
+    resize: none !important;
+    white-space: pre-wrap !important;
+    box-sizing: content-box !important;
+  }
+  .sheet-form__status {
+    display: none;
+  }
+}

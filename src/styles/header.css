@@ -1,6 +1,6 @@
 .sheet-header {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: 1fr auto;
   align-items: flex-start;
   gap: 2rem;
   justify-content: space-between;

@@ -45,13 +45,27 @@ type SheetEditorProps = {
   sheet: SheetRecord | null;
   fallbackName: string;
   loginId: string;
+  readOnly?: boolean;
 };
 
-export function SheetEditor({ sheet, fallbackName, loginId }: SheetEditorProps) {
+export function SheetEditor({
+  sheet,
+  fallbackName,
+  loginId,
+  readOnly = false,
+}: SheetEditorProps) {
   const [formState, setFormState] = useState<FormState>(defaultFormState);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const autoResize = (el: HTMLTextAreaElement) => {
+    if (window.matchMedia('print').matches) {
+      return;
+    }
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  };
 
   useEffect(() => {
     if (!sheet) {
@@ -86,7 +100,12 @@ export function SheetEditor({ sheet, fallbackName, loginId }: SheetEditorProps) 
       wishlistTopItems: serializeList(sheet.wishlistTopItems),
       additionalNotes: sheet.additionalNotes ?? "",
     });
-  }, [sheet, fallbackName]);
+  }, [sheet, fallbackName, loginId]);
+
+  useEffect(() => {
+    const textareas = document.querySelectorAll<HTMLTextAreaElement>(".sheet-form__textarea");
+    textareas.forEach((ta) => autoResize(ta));
+  }, [formState]);
 
   const yearValue = formState.year || new Date().getFullYear().toString();
   const parsedYear = useMemo(() => {
@@ -95,6 +114,9 @@ export function SheetEditor({ sheet, fallbackName, loginId }: SheetEditorProps) 
   }, [yearValue]);
 
   async function saveSheet() {
+    if (readOnly) {
+      return;
+    }
     setSaving(true);
     setError(null);
     setMessage(null);
@@ -140,6 +162,7 @@ export function SheetEditor({ sheet, fallbackName, loginId }: SheetEditorProps) 
   }
 
   function updateField(name: keyof FormState, value: string) {
+    if (readOnly) return;
     setFormState((prev) => ({ ...prev, [name]: value }));
   }
 
@@ -154,6 +177,7 @@ export function SheetEditor({ sheet, fallbackName, loginId }: SheetEditorProps) 
             className="sheet-form__answer-line"
             value={formState.displayName ?? ""}
             onChange={(event) => updateField("displayName", event.target.value)}
+            disabled={readOnly}
           />
         </div>
 
@@ -163,9 +187,13 @@ export function SheetEditor({ sheet, fallbackName, loginId }: SheetEditorProps) 
           <textarea
             className="sheet-form__textarea"
             value={formState.favoriteCandySnack ?? ""}
-            onChange={(event) => updateField("favoriteCandySnack", event.target.value)}
+            onChange={(event) => {
+              updateField("favoriteCandySnack", event.target.value);
+              autoResize(event.target);
+            }}
             placeholder="One per line"
-            rows={2}
+            rows={1}
+            readOnly={readOnly}
           />
         </div>
 
@@ -175,9 +203,13 @@ export function SheetEditor({ sheet, fallbackName, loginId }: SheetEditorProps) 
           <textarea
             className="sheet-form__textarea"
             value={formState.favoriteScents ?? ""}
-            onChange={(event) => updateField("favoriteScents", event.target.value)}
+            onChange={(event) => {
+              updateField("favoriteScents", event.target.value);
+              autoResize(event.target);
+            }}
             placeholder="One per line"
-            rows={2}
+            rows={1}
+            readOnly={readOnly}
           />
         </div>
 
@@ -187,9 +219,13 @@ export function SheetEditor({ sheet, fallbackName, loginId }: SheetEditorProps) 
           <textarea
             className="sheet-form__textarea"
             value={formState.favoriteFastFoodPlaces ?? ""}
-            onChange={(event) => updateField("favoriteFastFoodPlaces", event.target.value)}
+            onChange={(event) => {
+              updateField("favoriteFastFoodPlaces", event.target.value);
+              autoResize(event.target);
+            }}
             placeholder="One per line"
-            rows={2}
+            rows={1}
+            readOnly={readOnly}
           />
         </div>
 
@@ -199,9 +235,13 @@ export function SheetEditor({ sheet, fallbackName, loginId }: SheetEditorProps) 
           <textarea
             className="sheet-form__textarea"
             value={formState.favoriteRestaurants ?? ""}
-            onChange={(event) => updateField("favoriteRestaurants", event.target.value)}
+            onChange={(event) => {
+              updateField("favoriteRestaurants", event.target.value);
+              autoResize(event.target);
+            }}
             placeholder="One per line"
-            rows={2}
+            rows={1}
+            readOnly={readOnly}
           />
         </div>
 
@@ -211,9 +251,13 @@ export function SheetEditor({ sheet, fallbackName, loginId }: SheetEditorProps) 
           <textarea
             className="sheet-form__textarea"
             value={formState.favoriteStores ?? ""}
-            onChange={(event) => updateField("favoriteStores", event.target.value)}
+            onChange={(event) => {
+              updateField("favoriteStores", event.target.value);
+              autoResize(event.target);
+            }}
             placeholder="One per line"
-            rows={2}
+            rows={1}
+            readOnly={readOnly}
           />
         </div>
 
@@ -234,8 +278,12 @@ export function SheetEditor({ sheet, fallbackName, loginId }: SheetEditorProps) 
           <textarea
             className="sheet-form__textarea"
             value={formState.favoriteSaying ?? ""}
-            onChange={(event) => updateField("favoriteSaying", event.target.value)}
-            rows={2}
+            onChange={(event) => {
+              updateField("favoriteSaying", event.target.value);
+              autoResize(event.target);
+            }}
+            rows={1}
+            readOnly={readOnly}
           />
         </div>
 
@@ -247,6 +295,7 @@ export function SheetEditor({ sheet, fallbackName, loginId }: SheetEditorProps) 
             className="sheet-form__answer-line"
             value={formState.favoriteSportsTeam ?? ""}
             onChange={(event) => updateField("favoriteSportsTeam", event.target.value)}
+            disabled={readOnly}
           />
         </div>
 
@@ -258,6 +307,7 @@ export function SheetEditor({ sheet, fallbackName, loginId }: SheetEditorProps) 
             className="sheet-form__answer-line"
             value={formState.favoriteColorsTheme ?? ""}
             onChange={(event) => updateField("favoriteColorsTheme", event.target.value)}
+            disabled={readOnly}
           />
         </div>
 
@@ -269,6 +319,7 @@ export function SheetEditor({ sheet, fallbackName, loginId }: SheetEditorProps) 
             className="sheet-form__answer-line"
             value={formState.favoriteLogoEmblem ?? ""}
             onChange={(event) => updateField("favoriteLogoEmblem", event.target.value)}
+            disabled={readOnly}
           />
         </div>
 
@@ -280,6 +331,7 @@ export function SheetEditor({ sheet, fallbackName, loginId }: SheetEditorProps) 
             className="sheet-form__answer-line"
             value={formState.anniversaryDate ?? ""}
             onChange={(event) => updateField("anniversaryDate", event.target.value)}
+            disabled={readOnly}
           />
         </div>
 
@@ -289,9 +341,13 @@ export function SheetEditor({ sheet, fallbackName, loginId }: SheetEditorProps) 
           <textarea
             className="sheet-form__textarea"
             value={formState.favoritePlaces ?? ""}
-            onChange={(event) => updateField("favoritePlaces", event.target.value)}
+            onChange={(event) => {
+              updateField("favoritePlaces", event.target.value);
+              autoResize(event.target);
+            }}
             placeholder="One per line"
-            rows={2}
+            rows={1}
+            readOnly={readOnly}
           />
         </div>
 
@@ -312,8 +368,12 @@ export function SheetEditor({ sheet, fallbackName, loginId }: SheetEditorProps) 
           <textarea
             className="sheet-form__textarea"
             value={formState.otherFavorites ?? ""}
-            onChange={(event) => updateField("otherFavorites", event.target.value)}
-            rows={2}
+            onChange={(event) => {
+              updateField("otherFavorites", event.target.value);
+              autoResize(event.target);
+            }}
+            rows={1}
+            readOnly={readOnly}
           />
         </div>
 
@@ -323,8 +383,12 @@ export function SheetEditor({ sheet, fallbackName, loginId }: SheetEditorProps) 
           <textarea
             className="sheet-form__textarea"
             value={formState.familyDetails ?? ""}
-            onChange={(event) => updateField("familyDetails", event.target.value)}
-            rows={2}
+            onChange={(event) => {
+              updateField("familyDetails", event.target.value);
+              autoResize(event.target);
+            }}
+            rows={1}
+            readOnly={readOnly}
           />
         </div>
 
@@ -334,9 +398,13 @@ export function SheetEditor({ sheet, fallbackName, loginId }: SheetEditorProps) 
           <textarea
             className="sheet-form__textarea"
             value={formState.wishlistTopItems ?? ""}
-            onChange={(event) => updateField("wishlistTopItems", event.target.value)}
+            onChange={(event) => {
+              updateField("wishlistTopItems", event.target.value);
+              autoResize(event.target);
+            }}
             placeholder="One per line"
-            rows={2}
+            rows={1}
+            readOnly={readOnly}
           />
         </div>
 
@@ -346,8 +414,12 @@ export function SheetEditor({ sheet, fallbackName, loginId }: SheetEditorProps) 
           <textarea
             className="sheet-form__textarea"
             value={formState.additionalNotes ?? ""}
-            onChange={(event) => updateField("additionalNotes", event.target.value)}
-            rows={2}
+            onChange={(event) => {
+              updateField("additionalNotes", event.target.value);
+              autoResize(event.target);
+            }}
+            rows={1}
+            readOnly={readOnly}
           />
         </div>
       </div>
@@ -361,11 +433,13 @@ export function SheetEditor({ sheet, fallbackName, loginId }: SheetEditorProps) 
         <p>Thank you very much!</p>
         <p>Sincerely,</p>
         <strong className="mrs-claus">Mrs. Claus</strong>
-        <div className="sheet-signature__actions">
-          <button className="sheet-signature__button" onClick={saveSheet} disabled={saving}>
-            {saving ? "Saving..." : "Save sheet"}
-          </button>
-        </div>
+        {!readOnly && (
+          <div className="sheet-signature__actions">
+            <button className="sheet-signature__button" onClick={saveSheet} disabled={saving}>
+              {saving ? "Saving..." : "Save sheet"}
+            </button>
+          </div>
+        )}
         <div className="santa-stamp" aria-hidden="true" />
       </div>
     </section>
