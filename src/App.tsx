@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Schema } from "../amplify/data/resource";
 import { useAuthenticator } from "@aws-amplify/ui-react";
+import { fetchUserAttributes } from "aws-amplify/auth";
 import { generateClient } from "aws-amplify/data";
 import { DataManagementPanel } from "./features/admin";
 import { SheetEditor } from "./features/sheets";
@@ -11,6 +12,23 @@ const client = generateClient<Schema>();
 function App() {
   const [sheets, setSheets] = useState<Array<Schema["SantasSheet"]["type"]>>([]);
   const { user, signOut } = useAuthenticator();
+  const [fullName, setFullName] = useState("New friend");
+
+  useEffect(() => {
+    const loadAttributes = async () => {
+      try {
+        const attrs = await fetchUserAttributes();
+        const first = attrs.given_name ?? "";
+        const last = attrs.family_name ?? "";
+        const combined = `${first} ${last}`.trim();
+        setFullName(combined || attrs.email || user?.signInDetails?.loginId || "New friend");
+      } catch (err) {
+        setFullName(user?.signInDetails?.loginId || "New friend");
+      }
+    };
+
+    void loadAttributes();
+  }, [user?.signInDetails?.loginId]);
   const isAdmin = useMemo(() => {
     const loginId = user?.signInDetails?.loginId ?? "";
     return adminEmails.includes(loginId.toLowerCase());
@@ -26,7 +44,7 @@ function App() {
 
   async function createSheet() {
     await client.models.SantasSheet.create({
-      displayName: user?.signInDetails?.loginId ?? "New friend",
+      displayName: fullName,
       year: new Date().getFullYear(),
     });
   }
@@ -51,7 +69,8 @@ function App() {
           {sheets.length > 0 ? (
             <SheetEditor
               sheet={sheets[0]}
-              fallbackName={user?.signInDetails?.loginId ?? ""}
+              fallbackName={fullName}
+              loginId={user?.signInDetails?.loginId ?? ""}
             />
           ) : (
             <div className="sheet-empty">

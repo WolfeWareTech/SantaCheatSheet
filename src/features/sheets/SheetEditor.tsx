@@ -44,9 +44,10 @@ function parseList(value: string) {
 type SheetEditorProps = {
   sheet: SheetRecord | null;
   fallbackName: string;
+  loginId: string;
 };
 
-export function SheetEditor({ sheet, fallbackName }: SheetEditorProps) {
+export function SheetEditor({ sheet, fallbackName, loginId }: SheetEditorProps) {
   const [formState, setFormState] = useState<FormState>(defaultFormState);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -58,8 +59,14 @@ export function SheetEditor({ sheet, fallbackName }: SheetEditorProps) {
       return;
     }
 
+    const isDefaultDisplayName =
+      !sheet.displayName || sheet.displayName === loginId;
+    const effectiveDisplayName = isDefaultDisplayName
+      ? fallbackName
+      : sheet.displayName;
+
     setFormState({
-      displayName: sheet.displayName ?? fallbackName ?? "",
+      displayName: effectiveDisplayName ?? fallbackName ?? "",
       year: sheet.year?.toString() ?? new Date().getFullYear().toString(),
       favoriteCandySnack: serializeList(sheet.favoriteCandySnack),
       favoriteScents: serializeList(sheet.favoriteScents),
