@@ -1,0 +1,19 @@
+{
+  "at": "2026-11-13T23:06:07.554141+00:00",
+  "table_arn": "arn:aws:dynamodb:us-east-2:904233126347:table/SantaCheatSheet-P01-01-restore",
+  "status": "CREATING",
+  "audit": [
+    {
+      "at": "2026-11-13T23:06:06.307803+00:00",
+      "operation": "dynamodb:describe-backup",
+      "write": false,
+      "returncode": 0
+    },
+    {
+      "at": "2026-11-13T23:06:07.545605+00:00",
+      "operation": "dynamodb:restore-table-from-backup",
+      "write": true,
+      "returncode": 0
+    }
+  ]
+}

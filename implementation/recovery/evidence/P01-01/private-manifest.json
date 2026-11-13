@@ -1,0 +1,30 @@
+{
+  "at": "2026-11-13T23:11:07.201713+00:00",
+  "encryption": "DPAPI CurrentUser; current-user-only NTFS ACL",
+  "artifacts": {
+    "before.dpapi": {
+      "ciphertext_sha256": "7dd7d5ceba3882a468018487de007d5494223035c2f58808b268f92d9baa9492",
+      "bytes": 22308
+    },
+    "describe-table-error-5.dpapi": {
+      "ciphertext_sha256": "255e0a9d08a4abc52e9d86ac30279901185ff9a70339660b520dbea3024b6a3d",
+      "bytes": 468
+    },
+    "get-account-plan-state-error-11.dpapi": {
+      "ciphertext_sha256": "0d19052920d7b60b326c067400cf508cb9f792ab18971d69090cb286e67496b7",
+      "bytes": 436
+    },
+    "restore-request.dpapi": {
+      "ciphertext_sha256": "4acb8c75497fee070c2555583da7e4a2b8de8a5594f406efde23cd2a67454bab",
+      "bytes": 1332
+    },
+    "verified.dpapi": {
+      "ciphertext_sha256": "0cf964f2b01e4ae47453d44b9c023550932578d0c03a2292148267103539fb93",
+      "bytes": 37764
+    }
+  },
+  "plaintext_rows_sha256": "57b44a1c845f1b5566c9a7f7198dba051873bf9899b75562a966af24ae3484b6",
+  "plaintext_directory_sha256": "62855fd0acb0f0c72ab46d6ebc576bbe1fac15523b90a51be87745350cce0da2",
+  "raw_values_location": "implementation/private/P01/01",
+  "retention": "retain for independent review; no delete authority"
+}

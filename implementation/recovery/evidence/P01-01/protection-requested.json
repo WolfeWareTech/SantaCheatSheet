@@ -1,0 +1,28 @@
+{
+  "at": "2026-11-13T23:06:01.535284+00:00",
+  "recovery": {
+    "ContinuousBackupsDescription": {
+      "ContinuousBackupsStatus": "ENABLED",
+      "PointInTimeRecoveryDescription": {
+        "PointInTimeRecoveryStatus": "ENABLED",
+        "RecoveryPeriodInDays": 35,
+        "EarliestRestorableDateTime": "2026-11-13T18:06:02-05:00",
+        "LatestRestorableDateTime": "2026-11-13T18:06:02-05:00"
+      }
+    }
+  },
+  "audit": [
+    {
+      "at": "2026-11-13T23:06:00.445101+00:00",
+      "operation": "dynamodb:create-backup",
+      "write": true,
+      "returncode": 0
+    },
+    {
+      "at": "2026-11-13T23:06:01.535230+00:00",
+      "operation": "dynamodb:update-continuous-backups",
+      "write": true,
+      "returncode": 0
+    }
+  ]
+}

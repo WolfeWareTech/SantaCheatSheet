@@ -1,0 +1,103 @@
+{
+  "at": "2026-11-13T23:05:47.239650+00:00",
+  "lease_id": "P01-01",
+  "thread_id": "01a1d725-a4e3-7f63-8f82-fe1595b019a4",
+  "base_sha": "83f327c5b16f46bf9d04161917a65089def8a39d",
+  "region": "us-east-2",
+  "table_arn": "arn:aws:dynamodb:us-east-2:904233126347:table/SantasSheet-zzosqpbvzbgndoe5ntrns7634a-NONE",
+  "restore_name": "SantaCheatSheet-P01-01-restore",
+  "backup_name": "SantaCheatSheet-P01-01",
+  "full_typed_rows_match_p00": true,
+  "all_identity_attributes_match_p00": true,
+  "admin_membership_match_p00": true,
+  "row_count": 11,
+  "identity_count": 12,
+  "rows_sha256": "57b44a1c845f1b5566c9a7f7198dba051873bf9899b75562a966af24ae3484b6",
+  "directory_sha256": "62855fd0acb0f0c72ab46d6ebc576bbe1fac15523b90a51be87745350cce0da2",
+  "deletion_protection_before": true,
+  "recovery_before": {
+    "ContinuousBackupsDescription": {
+      "ContinuousBackupsStatus": "ENABLED",
+      "PointInTimeRecoveryDescription": {
+        "PointInTimeRecoveryStatus": "DISABLED"
+      }
+    }
+  },
+  "existing_backup_count": 0,
+  "billing_mode": {
+    "BillingMode": "PAY_PER_REQUEST",
+    "LastUpdateToPayPerRequestDateTime": "2025-11-15T23:41:42.873000-05:00"
+  },
+  "plan_check": {
+    "accountPlanType": "unverified: API unavailable; see encrypted diagnostic"
+  },
+  "private_encryption": "Windows DPAPI CurrentUser; current-user-only NTFS ACL",
+  "audit": [
+    {
+      "at": "2026-11-13T23:05:35.790099+00:00",
+      "operation": "sts:get-caller-identity",
+      "write": false,
+      "returncode": 0
+    },
+    {
+      "at": "2026-11-13T23:05:36.892482+00:00",
+      "operation": "dynamodb:describe-table",
+      "write": false,
+      "returncode": 0
+    },
+    {
+      "at": "2026-11-13T23:05:37.971363+00:00",
+      "operation": "dynamodb:describe-continuous-backups",
+      "write": false,
+      "returncode": 0
+    },
+    {
+      "at": "2026-11-13T23:05:39.055261+00:00",
+      "operation": "dynamodb:list-backups",
+      "write": false,
+      "returncode": 0
+    },
+    {
+      "at": "2026-11-13T23:05:40.157224+00:00",
+      "operation": "dynamodb:describe-table",
+      "write": false,
+      "returncode": 254
+    },
+    {
+      "at": "2026-11-13T23:05:41.267950+00:00",
+      "operation": "dynamodb:scan",
+      "write": false,
+      "returncode": 0
+    },
+    {
+      "at": "2026-11-13T23:05:42.433781+00:00",
+      "operation": "cognito-idp:list-users",
+      "write": false,
+      "returncode": 0
+    },
+    {
+      "at": "2026-11-13T23:05:43.618409+00:00",
+      "operation": "cognito-idp:list-users-in-group",
+      "write": false,
+      "returncode": 0
+    },
+    {
+      "at": "2026-11-13T23:05:44.771386+00:00",
+      "operation": "dynamodb:describe-time-to-live",
+      "write": false,
+      "returncode": 0
+    },
+    {
+      "at": "2026-11-13T23:05:45.908895+00:00",
+      "operation": "dynamodb:describe-kinesis-streaming-destination",
+      "write": false,
+      "returncode": 0
+    },
+    {
+      "at": "2026-11-13T23:05:47.166730+00:00",
+      "operation": "freetier:get-account-plan-state",
+      "write": false,
+      "returncode": 254
+    }
+  ]
+}

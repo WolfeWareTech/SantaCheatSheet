@@ -1,0 +1,83 @@
+{
+  "at": "2026-11-13T23:10:40.751110+00:00",
+  "backup_available": true,
+  "restore_active": true,
+  "restore_in_progress_reported": null,
+  "restore_completion_basis": "ACTIVE; same TableId/ARN as saved restore response with exact source backup; successful full strongly consistent scan",
+  "row_count": 11,
+  "identity_count": 12,
+  "exact_all_fields_typed_equality_p00_preflight_restored_live": true,
+  "row_set_sha256": "57b44a1c845f1b5566c9a7f7198dba051873bf9899b75562a966af24ae3484b6",
+  "per_row_hashes_match": true,
+  "all_identity_fields_unchanged": true,
+  "directory_sha256": "62855fd0acb0f0c72ab46d6ebc576bbe1fac15523b90a51be87745350cce0da2",
+  "admin_membership_unchanged": true,
+  "production_table_id_unchanged": true,
+  "production_deletion_protection": true,
+  "pitr": {
+    "PointInTimeRecoveryStatus": "ENABLED",
+    "RecoveryPeriodInDays": 35,
+    "EarliestRestorableDateTime": "2026-11-13T18:06:02-05:00",
+    "LatestRestorableDateTime": "2026-11-13T18:06:02-05:00"
+  },
+  "restore_table_arn": "arn:aws:dynamodb:us-east-2:904233126347:table/SantaCheatSheet-P01-01-restore",
+  "restore_request_summary": {
+    "RestoreDateTime": "2026-11-13T18:06:01.152000-05:00",
+    "RestoreInProgress": true,
+    "SourceBackupArn": "arn:aws:dynamodb:us-east-2:904233126347:table/SantasSheet-zzosqpbvzbgndoe5ntrns7634a-NONE/backup/01794611161152-5be62cd0",
+    "SourceTableArn": "arn:aws:dynamodb:us-east-2:904233126347:table/SantasSheet-zzosqpbvzbgndoe5ntrns7634a-NONE"
+  },
+  "restore_request_table_id_matches_active_table": true,
+  "key_attribute_and_index_definitions_match": true,
+  "all_restored_indexes_active": true,
+  "backup_size_bytes": 10933,
+  "method": "Unprojected strongly consistent all-page CLI scans; raw typed JSON exact equality; sorted map keys and row IDs for SHA256; no field omission; list order retained.",
+  "private_artifacts": [
+    "implementation/private/P01/01/before.dpapi",
+    "implementation/private/P01/01/verified.dpapi"
+  ],
+  "audit": [
+    {
+      "at": "2026-11-13T23:10:34.015413+00:00",
+      "operation": "dynamodb:describe-table",
+      "write": false,
+      "returncode": 0
+    },
+    {
+      "at": "2026-11-13T23:10:35.085536+00:00",
+      "operation": "dynamodb:scan",
+      "write": false,
+      "returncode": 0
+    },
+    {
+      "at": "2026-11-13T23:10:36.205973+00:00",
+      "operation": "dynamodb:scan",
+      "write": false,
+      "returncode": 0
+    },
+    {
+      "at": "2026-11-13T23:10:37.471195+00:00",
+      "operation": "cognito-idp:list-users",
+      "write": false,
+      "returncode": 0
+    },
+    {
+      "at": "2026-11-13T23:10:38.665266+00:00",
+      "operation": "cognito-idp:list-users-in-group",
+      "write": false,
+      "returncode": 0
+    },
+    {
+      "at": "2026-11-13T23:10:39.689668+00:00",
+      "operation": "dynamodb:describe-table",
+      "write": false,
+      "returncode": 0
+    },
+    {
+      "at": "2026-11-13T23:10:40.732500+00:00",
+      "operation": "dynamodb:describe-continuous-backups",
+      "write": false,
+      "returncode": 0
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "at": "2026-11-13T23:06:06.307865+00:00",
+  "backup": {
+    "BackupDetails": {
+      "BackupArn": "arn:aws:dynamodb:us-east-2:904233126347:table/SantasSheet-zzosqpbvzbgndoe5ntrns7634a-NONE/backup/01794611161152-5be62cd0",
+      "BackupName": "SantaCheatSheet-P01-01",
+      "BackupSizeBytes": 10933,
+      "BackupStatus": "AVAILABLE",
+      "BackupType": "USER",
+      "BackupCreationDateTime": "2026-11-13T18:06:01.152000-05:00"
+    },
+    "SourceTableDetails": {
+      "TableName": "SantasSheet-zzosqpbvzbgndoe5ntrns7634a-NONE",
+      "TableId": "eb4ebd59-2adb-44f3-8304-f220853bae44",
+      "TableArn": "arn:aws:dynamodb:us-east-2:904233126347:table/SantasSheet-zzosqpbvzbgndoe5ntrns7634a-NONE",
+      "TableSizeBytes": 10933,
+      "KeySchema": [
+        {
+          "AttributeName": "id",
+          "KeyType": "HASH"
+        }
+      ],
+      "TableCreationDateTime": "2025-11-15T23:41:42.873000-05:00",
+      "ProvisionedThroughput": {
+        "ReadCapacityUnits": 0,
+        "WriteCapacityUnits": 0
+      },
+      "ItemCount": 11,
+      "BillingMode": "PAY_PER_REQUEST"
+    },
+    "SourceTableFeatureDetails": {
+      "StreamDescription": {
+        "StreamEnabled": true,
+        "StreamViewType": "NEW_AND_OLD_IMAGES"
+      },
+      "SSEDescription": {
+        "Status": "ENABLED",
+        "SSEType": "KMS",
+        "KMSMasterKeyArn": "arn:aws:kms:us-east-2:904233126347:key/2c9295e3-7110-48f0-9779-5689f6b90b1b"
+      }
+    }
+  }
+}

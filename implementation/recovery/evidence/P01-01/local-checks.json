@@ -1,0 +1,9 @@
+{
+  "python_ast": true,
+  "exact_lease_active": true,
+  "private_acl_inheritance_disabled": true,
+  "private_acl_rule_count": 1,
+  "dpapi_current_user_roundtrip_verified_on_each_private_save": true,
+  "code_mutation_allowlist": "CreateBackup fixed name/source; enable 35-day PITR; retain/enable deletion protection; RestoreTableFromBackup fixed target/source backup only",
+  "cloud_deletes_item_identity_iam_kms_writes": 0
+}

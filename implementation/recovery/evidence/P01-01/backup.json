@@ -1,0 +1,10 @@
+{
+  "BackupDetails": {
+    "BackupArn": "arn:aws:dynamodb:us-east-2:904233126347:table/SantasSheet-zzosqpbvzbgndoe5ntrns7634a-NONE/backup/01794611161152-5be62cd0",
+    "BackupName": "SantaCheatSheet-P01-01",
+    "BackupSizeBytes": 10933,
+    "BackupStatus": "CREATING",
+    "BackupType": "USER",
+    "BackupCreationDateTime": "2026-11-13T18:06:01.152000-05:00"
+  }
+}
