@@ -1,12 +1,21 @@
 import { type ClientSchema, a, defineData } from "@aws-amplify/backend";
 
-/*== STEP 1 ===============================================================
-The section below creates a Todo database table with a "content" field. Try
-adding a new "isDone" field as a boolean. The authorization rule below
-specifies that any user authenticated via an API key can "create", "read",
-"update", and "delete" any "Todo" records.
-=========================================================================*/
+const seasonalHandler = a.handler.custom({ dataSource: 'seasonalBackend', entry: '../seasonal/resolver.js' });
 const schema = a.schema({
+  seasonState: a.query().arguments({ year: a.integer().required() }).returns(a.json())
+    .authorization(allow => [allow.authenticated()]).handler(seasonalHandler),
+  seasonSheet: a.query().arguments({ year: a.integer().required(), subject: a.string() }).returns(a.json())
+    .authorization(allow => [allow.authenticated()]).handler(seasonalHandler),
+  ensureSeasonSheet: a.mutation().arguments({ year: a.integer().required() }).returns(a.json())
+    .authorization(allow => [allow.authenticated()]).handler(seasonalHandler),
+  saveSeasonSheet: a.mutation().arguments({ year: a.integer().required(), answers: a.json().required(),
+    expectedRevision: a.integer().required(), intent: a.string().required(), idempotencyKey: a.string().required() })
+    .returns(a.json()).authorization(allow => [allow.authenticated()]).handler(seasonalHandler),
+  seasonProgress: a.query().arguments({ year: a.integer().required(), nextToken: a.string() }).returns(a.json())
+    .authorization(allow => [allow.groups(['admin'])]).handler(seasonalHandler),
+  configureSeason: a.mutation().arguments({ year: a.integer().required(), state: a.string().required(),
+    expectedRevision: a.integer().required(), deadline: a.datetime() }).returns(a.json())
+    .authorization(allow => [allow.groups(['admin'])]).handler(seasonalHandler),
   SantasSheet: a
     .model({
       year: a.integer(),
