@@ -1,0 +1,21 @@
+{
+  "contract_version": 1,
+  "selected_baseline_sha": "17fce432369c5405d3b5e72eaf0d5054c27cdd6a",
+  "baseline_tree_sha": "24d681f1a1040139cc8d7df3b31edc43a77ba669",
+  "canonical_origin": "https://github.com/WolfeWareTech/SantaCheatSheet.git",
+  "branch": "main",
+  "production_job_id": "7",
+  "selected_at_utc": "2026-11-13T22:52:08.630134+00:00",
+  "selection_status": "worker-selected; coordinator acceptance pending",
+  "resources_private_manifest": "implementation/private/P00/01/resources.json",
+  "preservation_observation": "implementation/private/P00/01/baseline.dpapi",
+  "sanitized_evidence": [
+    "orchestration/results/P00/01/baseline.json",
+    "orchestration/results/P00/01/verification.json"
+  ],
+  "registered_identities": 12,
+  "legacy_2025_rows": 11,
+  "cloud_writes": 0,
+  "guidance_preference": "LOW",
+  "p01_recovery_gate": "No application cloud mutations before accepted protected backup and restore proof."
+}

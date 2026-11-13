@@ -30,3 +30,11 @@ dist-ssr
 .amplify
 amplify_outputs*
 amplifyconfiguration*
+
+# Local-only implementation evidence and secrets
+.env*
+private/
+implementation/private/
+private-backups/
+*.dpapi
+__pycache__/
