@@ -1,6 +1,8 @@
 import { useRef, useState } from "react";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../../amplify/data/resource";
+import { ApiFailure, apiFailure, checkedList } from "../../lib/apiResults";
+import { importRecords, importSummary, prepareImport, type ImportRow } from "./importRecords";
 
 const client = generateClient<Schema>();
 
@@ -36,7 +38,7 @@ async function readFileAsJson(file: File) {
   if (Array.isArray(parsed?.data)) {
     return parsed.data;
   }
-  throw new Error("Uploaded JSON must be an array or contain an items array.");
+  throw new ApiFailure("validation");
 }
 
 export function DataManagementPanel() {
@@ -45,24 +47,21 @@ export function DataManagementPanel() {
   const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [importRows, setImportRows] = useState<ImportRow[]>([]);
+  const importBusy = useRef(false);
+  const exportBusy = useRef(false);
+  const importSource = useRef<string | null>(null);
+  const lastImportRows = useRef<ImportRow[]>([]);
 
   async function handleExport() {
+    if (exportBusy.current) return;
+    exportBusy.current = true;
     setExporting(true);
     setError(null);
     setMessage(null);
 
     try {
-      const allRecords: SheetRecord[] = [];
-      let nextToken: string | null | undefined;
-
-      do {
-        const response = await client.models.SantasSheet.list({
-          nextToken,
-          limit: 200,
-        });
-        allRecords.push(...response.data);
-        nextToken = response.nextToken;
-      } while (nextToken);
+      const allRecords = await checkedList((nextToken) => client.models.SantasSheet.list({ nextToken, limit: 200 }));
 
       const filename = `santa-sheet-backup-${new Date()
         .toISOString()
@@ -70,47 +69,44 @@ export function DataManagementPanel() {
       downloadJsonFile(filename, allRecords);
       setMessage(`Exported ${allRecords.length} record(s).`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to export data.");
+      setError(apiFailure(err).safeMessage);
     } finally {
       setExporting(false);
+      exportBusy.current = false;
     }
   }
 
-  async function handleImport(file: File) {
+  async function handleImport(file?: File) {
+    if (importBusy.current) return;
+    importBusy.current = true;
     setImporting(true);
     setError(null);
     setMessage(null);
 
     try {
-      const records = (await readFileAsJson(file)) as Array<
-        Partial<SheetRecord & { content?: string }>
-      >;
-      let importedCount = 0;
-
-      for (const record of records) {
-        if (!record?.displayName && !record?.id) {
-          // skip obviously invalid rows
-          continue;
-        }
-
-        try {
-          const { content, ...rest } = record;
-          await client.models.SantasSheet.create({
-            id: record.id,
-            ...rest,
-            additionalNotes: rest.additionalNotes ?? content ?? "",
-          });
-          importedCount += 1;
-        } catch (createError) {
-          console.warn("Failed to import record", record, createError);
+      let rows = lastImportRows.current;
+      if (file) {
+        const records = await readFileAsJson(file);
+        const source = JSON.stringify(records);
+        if (source !== importSource.current) {
+          rows = prepareImport(records);
+          importSource.current = source;
+          lastImportRows.current = rows;
         }
       }
-
-      setMessage(`Imported ${importedCount} record(s) into SantasSheet.`);
+      const outcomes = await importRecords(rows, {
+        get: (id) => client.models.SantasSheet.get({ id }),
+        create: (payload) => client.models.SantasSheet.create(payload as Partial<SheetRecord> & { id: string }),
+      });
+      setImportRows(outcomes);
+      lastImportRows.current = outcomes;
+      if (outcomes.some((row) => row.state === "failed")) setError(importSummary(outcomes));
+      else setMessage(importSummary(outcomes));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to import data.");
+      setError(apiFailure(err).safeMessage);
     } finally {
       setImporting(false);
+      importBusy.current = false;
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -126,7 +122,7 @@ export function DataManagementPanel() {
       </p>
 
       <div className="admin-panel__actions">
-        <button onClick={handleExport} disabled={exporting}>
+        <button onClick={handleExport} disabled={exporting || importing}>
           {exporting ? "Exporting..." : "Export current data"}
         </button>
 
@@ -151,8 +147,13 @@ export function DataManagementPanel() {
       </div>
 
       <div className="admin-panel__status">
-        {message && <p className="success">{message}</p>}
-        {error && <p className="error">Error: {error}</p>}
+        {message && <p className="success" role="status">{message}</p>}
+        {error && <p className="error" role="alert">{error}</p>}
+        {importRows.some((row) => row.state === "failed") && <>
+          <ul>{importRows.filter((row) => row.state === "failed").map((row) => <li key={row.row}>Row {row.row}: {row.error?.safeMessage}</li>)}</ul>
+          <button disabled={importing} onClick={() => { void handleImport(); }}>Retry failed import rows</button>
+          <p>Keep this page open to retry the same rows safely.</p>
+        </>}
       </div>
 
       <details>

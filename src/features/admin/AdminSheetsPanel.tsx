@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../../amplify/data/resource";
+import { apiFailure, checkedList } from "../../lib/apiResults";
 
 const client = generateClient<Schema>();
 
@@ -12,39 +13,33 @@ type AdminSheetsPanelProps = {
 
 export function AdminSheetsPanel({ onSelect }: AdminSheetsPanelProps) {
   const [sheets, setSheets] = useState<SheetRecord[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [reload, setReload] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let active = true;
     const fetchAll = async () => {
       setLoading(true);
       setError(null);
       try {
-        const items: SheetRecord[] = [];
-        let nextToken: string | undefined | null;
-        do {
-          const resp = await client.models.SantasSheet.list({
-            limit: 200,
-            nextToken,
-          });
-          items.push(...resp.data);
-          nextToken = resp.nextToken;
-        } while (nextToken);
-        setSheets(items);
+        const items = await checkedList((nextToken) => client.models.SantasSheet.list({ limit: 200, nextToken }));
+        if (active) setSheets(items);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load sheets.");
+        if (active) setError(apiFailure(err).safeMessage);
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
     void fetchAll();
-  }, []);
+    return () => { active = false; };
+  }, [reload]);
 
   return (
     <section className="admin-panel">
       <h3>All submitted sheets</h3>
       {loading && <p>Loading…</p>}
-      {error && <p className="error">Error: {error}</p>}
+      {error && <div role="alert"><p className="error">{error}</p><button onClick={() => setReload((value) => value + 1)} disabled={loading}>Retry loading sheets</button></div>}
       {!loading && !error && (
         <div className="admin-table">
           <div className="admin-table__header">

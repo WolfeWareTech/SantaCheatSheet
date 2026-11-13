@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../../amplify/data/resource";
+import { apiFailure } from "../../lib/apiResults";
+import { createSheetWriter } from "./persistence";
 
 const client = generateClient<Schema>();
 
@@ -58,6 +60,10 @@ export function SheetEditor({
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const dirty = useRef(false);
+  const savingRef = useRef(false);
+  const loadedId = useRef<string | null | undefined>(undefined);
+  const writer = useRef<ReturnType<typeof createSheetWriter<SheetRecord, Partial<SheetRecord>>> | null>(null);
 
   const autoResize = (el: HTMLTextAreaElement) => {
     if (window.matchMedia('print').matches) {
@@ -68,6 +74,19 @@ export function SheetEditor({
   };
 
   useEffect(() => {
+    const id = sheet?.id ?? null;
+    if (dirty.current) return;
+    if (loadedId.current !== id) {
+      loadedId.current = id;
+      dirty.current = false;
+      writer.current = createSheetWriter<SheetRecord, Partial<SheetRecord>>({
+        get: (recordId) => client.models.SantasSheet.get({ id: recordId }),
+        create: (payload) => client.models.SantasSheet.create(payload),
+        update: (payload) => client.models.SantasSheet.update(payload),
+      }, id ?? crypto.randomUUID(), !!sheet);
+      setMessage(null);
+      setError(null);
+    }
     if (!sheet) {
       setFormState({ ...defaultFormState, displayName: fallbackName });
       return;
@@ -114,9 +133,10 @@ export function SheetEditor({
   }, [yearValue]);
 
   async function saveSheet() {
-    if (readOnly) {
+    if (readOnly || savingRef.current) {
       return;
     }
+    savingRef.current = true;
     setSaving(true);
     setError(null);
     setMessage(null);
@@ -144,31 +164,27 @@ export function SheetEditor({
         additionalNotes: formState.additionalNotes,
       };
 
-      if (sheet) {
-        await client.models.SantasSheet.update({
-          id: sheet.id,
-          ...payload,
-        });
-      } else {
-        await client.models.SantasSheet.create(payload);
-      }
-
+      await writer.current!(payload);
+      dirty.current = false;
       setMessage("Saved!");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save sheet.");
+      setError(`${apiFailure(err).safeMessage} Your edits are still here.`);
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }
 
   function updateField(name: keyof FormState, value: string) {
-    if (readOnly) return;
+    if (readOnly || savingRef.current) return;
+    dirty.current = true;
+    setMessage(null);
     setFormState((prev) => ({ ...prev, [name]: value }));
   }
 
   return (
     <section className="sheet-form">
-      <div className="sheet-form__grid">
+      <fieldset className="sheet-form__grid" disabled={saving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
         {/* Name field */}
         <div className="sheet-form__question">
           <label className="sheet-form__question-label">Name:</label>
@@ -422,11 +438,11 @@ export function SheetEditor({
             readOnly={readOnly}
           />
         </div>
-      </div>
+      </fieldset>
 
       <div className="sheet-form__status">
-        {message && <p className="success">{message}</p>}
-        {error && <p className="error">Error: {error}</p>}
+        {message && <p className="success" role="status">{message}</p>}
+        {error && <p className="error" role="alert">{error}</p>}
       </div>
 
       <div className="sheet-signature">
@@ -436,7 +452,7 @@ export function SheetEditor({
         {!readOnly && (
           <div className="sheet-signature__actions">
             <button className="sheet-signature__button" onClick={saveSheet} disabled={saving}>
-              {saving ? "Saving..." : "Save sheet"}
+              {saving ? "Saving..." : error ? "Retry save" : "Save sheet"}
             </button>
           </div>
         )}
