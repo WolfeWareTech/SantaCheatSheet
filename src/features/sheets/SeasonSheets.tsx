@@ -3,6 +3,7 @@ import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../../amplify/data/resource";
 import { apiFailure } from "../../lib/apiResults";
 import { SheetEditor } from "./SheetEditor";
+import { NativeSeasonShare } from "../invitations/native-share/NativeSeasonShare";
 import { ACTIVE_YEAR, HISTORY_YEAR, editorSheet, seasonApi, seasonWriter, type HistoryTarget, type LegacySheet, type SeasonSheet } from "./seasonal";
 
 const client = generateClient<Schema>();
@@ -30,6 +31,7 @@ function CurrentSheet({ api, name, visible }: { api: Api; name: string; visible:
   return <>
     <h2>Your {ACTIVE_YEAR} Santa sheet</h2>
     <p>Account: {name}</p>
+    <NativeSeasonShare />
     {loading && <p role="status">Opening your {ACTIVE_YEAR} sheet…</p>}
     {error && <div role="alert"><p>{error}</p><button onClick={() => setRetry(value => value + 1)}>Retry opening your {ACTIVE_YEAR} sheet</button></div>}
     {view && writer && <SheetEditor sheet={view} fallbackName={name} loginId="" visible={visible} saveAnswers={async answers => {
