@@ -11,7 +11,11 @@
   gap: 0.5rem;
 }
 
-.native-season-share__actions button {
+.native-season-share__actions button,
+.native-season-share__actions a {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
   max-width: 100%;
   min-height: 44px;
   padding: 0.65rem 1rem;
@@ -23,18 +27,22 @@
   font-weight: 600;
   white-space: normal;
   cursor: pointer;
+  text-decoration: none;
 }
 
-.native-season-share__actions button:hover:not(:disabled) {
+.native-season-share__actions button:hover:not(:disabled),
+.native-season-share__actions a:hover:not([aria-disabled="true"]) {
   background: #1a6b1a;
 }
 
-.native-season-share__actions button:disabled {
+.native-season-share__actions button:disabled,
+.native-season-share__actions a[aria-disabled="true"] {
   opacity: 0.6;
   cursor: wait;
 }
 
 .native-season-share__actions button:focus-visible,
+.native-season-share__actions a:focus-visible,
 .native-season-share__fallback input:focus-visible {
   outline: 2px solid #1a6b1a;
   outline-offset: 3px;

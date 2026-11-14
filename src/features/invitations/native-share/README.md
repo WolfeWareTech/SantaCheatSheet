@@ -1,4 +1,37 @@
-# Generic 2026 sharing
+# Generic 2026 text draft and sharing
+
+The R01 parent mounts these controls only for admins, for any admin subject/name.
+`Text link` is the first action. On iPhone/iPad/iPadOS it uses
+`sms:&body=<encoded generic link>`; on Android it uses
+`sms:?body=<encoded generic link>`. Both deliberately leave the recipient empty.
+The native app owns contact selection, editable body and the final human Send.
+There is no provider call, contact API, send handler or delivery status. The
+anchor's default action runs directly from the user's click; pending Share/Copy
+blocks it. Returning/canceling does not remount or save the sheet editor.
+
+Desktop/unknown platforms use explicit-click Copy instead of attempting a phone
+handler (including desktop Macs). iPadOS's desktop-style Macintosh user agent is
+recognized by more than one touch point. This is a best-effort platform hint,
+not handler detection: mobile browsers can also block external schemes or omit
+the body. Copy remains visible, and a Text click exposes the selectable link
+with instructions for a missing handler/body. It never claims the app opened.
+
+Primary platform guidance checked November 13, 2026:
+
+- [Apple SMS links](https://developer.apple.com/library/archive/featuredarticles/iPhoneURLScheme_Reference/SMSLinks/SMSLinks.html)
+  documents recipient-optional `sms:` opening Messages, but explicitly does not
+  document body support. [Current Apple messaging guidance](https://developer.apple.com/documentation/messages/preparing-your-app-to-be-the-default-messaging-app)
+  still excludes message text from its documented URL form.
+- [Android common intents](https://developer.android.com/guide/components/intents-common#Messaging)
+  documents SMS/SMSTO composition and native `sms_body` extras; it does not
+  guarantee browser query handling. [RFC 5724](https://www.rfc-editor.org/rfc/rfc5724.html)
+  defines percent-encoded `?body=` and user review, but its formal syntax requires
+  recipients. The empty-recipient form is a platform extension.
+- [Sendblue's own browser-link implementation guide](https://docs.sendblue.com/guides/imessage-link-button/)
+  documents the iOS `&body=` versus Android `?body=` conventions and explicitly
+  calls iOS prefill undocumented. We use only these URI conventions, no service
+  integration or provider requests. Prefill is therefore best effort and remains
+  a physical-device acceptance check, not a claim of Apple-guaranteed support.
 
 `NativeSeasonShare` is mounted beside the current sheet, outside its editor. It
 never saves answers, changes routes, reads contacts or maps recipients. The URL

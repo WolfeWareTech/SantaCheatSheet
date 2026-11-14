@@ -1,5 +1,6 @@
 import { useId, useRef, useState } from "react";
 import { seasonShareUrl } from "./seasonShareUrl";
+import { textDraftUri } from "./textDraftUri";
 import "./native-share.css";
 
 export function NativeSeasonShare() {
@@ -9,6 +10,7 @@ export function NativeSeasonShare() {
   const pending = useRef(false);
   const linkId = useId();
   const url = seasonShareUrl(window.location);
+  const textUri = textDraftUri(url, navigator);
 
   async function share() {
     if (pending.current) return;
@@ -45,7 +47,7 @@ export function NativeSeasonShare() {
     try {
       if (typeof navigator.clipboard?.writeText !== "function") throw new Error("Clipboard unavailable");
       await navigator.clipboard.writeText(url);
-      setMessage("Link copied. Paste it into your message.");
+      setMessage("Link copied. Paste it into Messages, choose contacts, edit, then tap Send.");
     } catch {
       setShowLink(true);
       setMessage("Could not copy automatically. Select the link below and copy it.");
@@ -57,10 +59,18 @@ export function NativeSeasonShare() {
 
   return <section className="native-season-share no-print no-capture" aria-label="Share the 2026 link">
     <div className="native-season-share__actions">
+      {textUri
+        ? <a href={textUri} aria-disabled={busy} onClick={event => {
+          if (pending.current) { event.preventDefault(); return; }
+          setShowLink(true);
+          setMessage("In Messages, choose contacts, edit the draft, then tap Send. If Messages did not open or the link is missing, use Copy link.");
+        }}>Text link</a>
+        : <button type="button" disabled={busy} onClick={() => { setShowLink(true); void copy(); }}>Text link</button>}
       <button type="button" disabled={busy} onClick={() => { void share(); }}>Share 2026 link</button>
       <button type="button" disabled={busy} onClick={() => { void copy(); }}>Copy link</button>
     </div>
-    <p>Choose contacts, review, and send in your phone’s share options. This link opens each person’s own sheet after sign-in; it contains no answers.</p>
+    <p>Text link opens a Messages draft on your phone. Choose contacts, add or edit text, then tap Send. On a computer, it copies the link. If Messages does not open or the link is missing, use Copy link. Share offers other apps.</p>
+    <p>This link opens each person’s own sheet after sign-in; it contains no answers.</p>
     <p role="status" aria-live="polite">{message}</p>
     {showLink && <div className="native-season-share__fallback">
       <label htmlFor={linkId}>2026 sign-in link</label>

@@ -4,13 +4,14 @@ import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { NativeSeasonShare } from "./NativeSeasonShare";
 import { seasonShareUrl } from "./seasonShareUrl";
+import { textDraftUri } from "./textDraftUri";
 import { SeasonSheets } from "../../sheets/SeasonSheets";
 import { fixture, resetFixture } from "../../sheets/tests/mockSeasonClient";
 
 let host: HTMLDivElement;
 let root: Root;
 const expected = "https://synthetic.invalid/family/#/sheets/2026";
-function browserApi(key: "share" | "clipboard", value: unknown) {
+function browserApi(key: "share" | "clipboard" | "userAgent" | "maxTouchPoints" | "contacts", value: unknown) {
   Object.defineProperty(navigator, key, { configurable: true, value });
 }
 async function render(element: ReactNode = <NativeSeasonShare />) {
@@ -22,6 +23,19 @@ function button(label: string) {
   return match;
 }
 async function click(label: string) { await act(async () => { button(label).click(); }); }
+async function openTextDraft(blocked = false) {
+  const link = host.querySelector<HTMLAnchorElement>('.native-season-share a');
+  assert.ok(link);
+  let attempts = 0;
+  // Observe only: never launch a real URI handler, contacts or Messages in tests.
+  document.addEventListener('click', event => {
+    assert.equal(event.defaultPrevented, blocked);
+    attempts++;
+    event.preventDefault();
+  }, { once: true });
+  await act(async () => { link.click(); });
+  assert.equal(attempts, 1);
+}
 function status() { return host.querySelector(".native-season-share [role=status]")?.textContent ?? ""; }
 function selectableLink() {
   const input = host.querySelector<HTMLInputElement>(".native-season-share input");
@@ -36,6 +50,9 @@ test.beforeEach(() => {
   window.history.replaceState(null, "", "/family/?token=PRIVATE_QUERY&answer=PRIVATE_ANSWER#/sheets/2025/PRIVATE_SUBJECT?credential=PRIVATE_TOKEN");
   browserApi("share", undefined);
   browserApi("clipboard", undefined);
+  browserApi("userAgent", "Synthetic desktop");
+  browserApi("maxTouchPoints", 0);
+  browserApi("contacts", { select: () => assert.fail("the app must not read contacts") });
   host = document.createElement("div"); document.body.append(host); root = createRoot(host);
 });
 test.afterEach(async () => { await act(async () => { root.unmount(); }); host.remove(); });
@@ -43,6 +60,82 @@ test.afterEach(async () => { await act(async () => { root.unmount(); }); host.re
 test("URL shares only origin/path and explicit 2026; ignores private query, old subject, credentials and device year", () => {
   assert.equal(seasonShareUrl(window.location), expected);
   assert.equal(seasonShareUrl(new URL("https://user:password@synthetic.invalid/?token=private#/sheets/2025/person")), "https://synthetic.invalid/#/sheets/2026");
+});
+test("recipient-free iPhone/iPad/iPadOS/Android URIs encode only the generic season link; desktop uses Copy", () => {
+  for (const browser of [
+    { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)', maxTouchPoints: 5 },
+    { userAgent: 'Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X)', maxTouchPoints: 5 },
+    { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15) AppleWebKit/605.1.15', maxTouchPoints: 5 },
+  ]) {
+    assert.equal(textDraftUri(expected, browser), `sms:&body=${encodeURIComponent(expected)}`);
+  }
+  assert.equal(textDraftUri(expected, { userAgent: 'Mozilla/5.0 (Linux; Android 15; Synthetic)', maxTouchPoints: 5 }), `sms:?body=${encodeURIComponent(expected)}`);
+  for (const userAgent of ['Mozilla/5.0 (Windows NT 10.0)', 'Mozilla/5.0 (Macintosh; Intel Mac OS X)', 'Linux', '']) {
+    assert.equal(textDraftUri(expected, { userAgent, maxTouchPoints: 0 }), null);
+  }
+  const unicodeUrl = 'https://synthetic.invalid/family/%20/🎄#/sheets/2026';
+  const uri = textDraftUri(unicodeUrl, { userAgent: 'Android', maxTouchPoints: 0 })!;
+  assert.equal(decodeURIComponent(uri.slice('sms:?body='.length)), unicodeUrl);
+});
+
+test("Text link prepares only an editable native draft after a click, with Copy always available; never calls send/contact APIs", async t => {
+  t.mock.method(globalThis, 'fetch', () => assert.fail('no network request'));
+  browserApi('share', () => assert.fail('Text must not invoke generic Share'));
+  browserApi('clipboard', { writeText: () => assert.fail('no automatic clipboard action on mobile') });
+  for (const [userAgent, prefix] of [['iPhone', 'sms:&body='], ['Android', 'sms:?body=']]) {
+    browserApi('userAgent', userAgent);
+    await render();
+    const link = host.querySelector<HTMLAnchorElement>('.native-season-share a')!;
+    assert.equal(link.textContent, 'Text link');
+    assert.equal(link.getAttribute('href'), `${prefix}${encodeURIComponent(expected)}`);
+    const route = window.location.href;
+    await openTextDraft();
+    assert.match(status(), /choose contacts, edit the draft, then tap Send/);
+    assert.doesNotMatch(status(), /sent|delivered|PRIVATE/i);
+    assert.equal(window.location.href, route);
+    selectableLink();
+    assert.ok(!button('Copy link').disabled);
+    await openTextDraft(); // Reopening/canceling remains possible; no send callback.
+  }
+});
+
+test("desktop Text link copies on explicit click; unsupported clipboard leaves selectable fallback", async () => {
+  const copied: string[] = [];
+  browserApi('clipboard', { writeText: async (text: string) => { copied.push(text); } });
+  await render();
+  assert.equal(host.querySelector('.native-season-share a'), null);
+  assert.equal(copied.length, 0);
+  await click('Text link');
+  assert.deepEqual(copied, [expected]);
+  assert.match(status(), /Link copied.*tap Send/);
+  browserApi('clipboard', undefined);
+  await click('Text link');
+  assert.match(status(), /Select the link below/);
+  selectableLink();
+});
+
+test("Text action obeys the admin parent for any subject and disappears when admin claim is removed", async () => {
+  browserApi('userAgent', 'iPhone');
+  for (const subject of ['alice', 'bob']) {
+    for (const isAdmin of [false, true, false]) {
+      fixture.admin = isAdmin;
+      await render(<SeasonSheets subject={subject} name="Synthetic participant" isAdmin={isAdmin} history={null} onHistory={() => {}} />);
+      assert.equal(!!host.querySelector('.native-season-share a'), isAdmin);
+      if (!isAdmin) assert.doesNotMatch(host.textContent ?? '', /Text link|Copy link|Share 2026 link/);
+    }
+  }
+});
+
+test("pending generic Share blocks the native Text handoff too", async () => {
+  browserApi('userAgent', 'iPhone');
+  let finish!: () => void;
+  browserApi('share', () => new Promise<void>(resolve => { finish = resolve; }));
+  await render();
+  await click('Share 2026 link');
+  assert.equal(host.querySelector('.native-season-share a')?.getAttribute('aria-disabled'), 'true');
+  await openTextDraft(true);
+  await act(async () => { finish(); });
+  assert.equal(host.querySelector('.native-season-share a')?.getAttribute('aria-disabled'), 'false');
 });
 test("native share starts in the click, with only a generic title and sanitized URL; resolution never claims delivery", async () => {
   let calls = 0;
@@ -123,6 +216,7 @@ test("pending native panel prevents overlapping actions and releases buttons aft
   assert.ok(!button("Share 2026 link").disabled);
 });
 test("share, cancel, clipboard fallback and history navigation retain the mounted unsaved draft and all legacy records", async () => {
+  browserApi('userAgent', 'iPhone');
   fixture.admin = true;
   const legacy = structuredClone(fixture.legacy);
   await render(<SeasonSheets subject="alice" name="Alice" isAdmin={true} history={null} onHistory={() => {}} />);
@@ -134,6 +228,7 @@ test("share, cancel, clipboard fallback and history navigation retain the mounte
   const savedBefore = structuredClone(fixture.sheets);
   const callsBefore = structuredClone(fixture.calls);
   const route = window.location.href;
+  await openTextDraft();
   browserApi("share", async (data: ShareData) => {
     assert.deepEqual(data, { title: "Santa Cheat Sheet 2026", url: expected });
   });
