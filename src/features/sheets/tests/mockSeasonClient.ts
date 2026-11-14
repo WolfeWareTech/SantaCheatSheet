@@ -1,5 +1,5 @@
 // Synthetic transport only. No Amplify configuration, credentials or endpoints.
-import { service, Rejected, type Sheet, type Store } from "../../../../amplify/seasonal/service";
+import { service, Rejected, type Sheet, type Store, type Season, type ActiveSeason, progressOf } from "../../../../amplify/seasonal/service";
 import type { UpstreamResult } from "../../../lib/apiResults";
 import type { SaveRequest } from "../seasonal";
 
@@ -8,6 +8,7 @@ const legacyFixture = () => [{ id: "legacy-alice", owner: "alice::old-login", ye
   { id: "legacy-bob", owner: "bob::old-login", year: 2025, displayName: "Historical Bob", additionalNotes: "bob history",
     createdAt: "2025-01-02", updatedAt: "2025-12-02" }];
 export const fixture = {
+  active: { activeYear: 2026, revision: 0 } as ActiveSeason, seasons: new Map<number, Season>(),
   subject: "alice", admin: false, loginId: "synthetic@example.invalid", expired: false,
   sessionClaims: null as Record<string, unknown> | null,
   sheets: new Map<string, Sheet>(), legacy: legacyFixture(), calls: [] as { field: string; args: Record<string, unknown> }[],
@@ -15,12 +16,16 @@ export const fixture = {
 };
 export function resetFixture() {
   fixture.subject = "alice"; fixture.admin = false; fixture.loginId = "synthetic@example.invalid"; fixture.expired = false;
-  fixture.sessionClaims = null;
+  fixture.sessionClaims = null; fixture.active = { activeYear: 2026, revision: 0 }; fixture.seasons.clear();
   fixture.sheets.clear(); fixture.legacy = legacyFixture(); fixture.calls = []; fixture.intercept = null;
 }
 const store: Store = {
-  season: async () => null,
-  configure: async () => { throw new Error("Not part of frontend fixture"); },
+  active: async () => fixture.active,
+  seasons: async () => [...fixture.seasons.values()],
+  activate: async next => { fixture.active = next; },
+  legacyCount: async () => fixture.legacy.length,
+  season: async year => fixture.seasons.get(year) ?? null,
+  configure: async season => { fixture.seasons.set(season.year, season); },
   get: async (subject, year) => structuredClone(fixture.sheets.get(`${subject}:${year}`) ?? null),
   create: async sheet => {
     if (fixture.sheets.has(sheet.sheetId)) throw new Rejected("conflict");
@@ -31,7 +36,7 @@ const store: Store = {
     fixture.sheets.set(sheet.sheetId, structuredClone(sheet));
   },
   legacy: async () => structuredClone(fixture.legacy),
-  progress: async () => ({ items: [], nextToken: null }),
+  progress: async year => ({ items: [...fixture.sheets.values()].filter(s => s.year === year).map(progressOf), nextToken: null }),
 };
 const run = service(store, () => "2026-11-13T23:00:00.000Z");
 async function call(field: string, args: Record<string, unknown>): Promise<UpstreamResult<unknown>> {
@@ -43,7 +48,11 @@ async function call(field: string, args: Record<string, unknown>): Promise<Upstr
 }
 export function generateClient() {
   return {
-    queries: { seasonSheet: (args: { year: number; subject?: string }) => call("seasonSheet", args) },
+    queries: {
+      seasonState: (args: { year: number }) => call('seasonState', args),
+      seasonAdmin: (args: { year: number }) => call('seasonAdmin', args),
+      directoryList: async () => ({ data: { ok: true, data: { revision: 0, contacts: [] } } }),
+      seasonSheet: (args: { year: number; subject?: string }) => call("seasonSheet", args) },
     mutations: {
       ensureSeasonSheet: (args: { year: number }) => call("ensureSeasonSheet", args),
       saveSeasonSheet: (args: SaveRequest) => call("saveSeasonSheet", args),

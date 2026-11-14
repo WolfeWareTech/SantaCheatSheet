@@ -24,7 +24,7 @@ export function AdminSheetsPanel({ onSelect }: AdminSheetsPanelProps) {
       setError(null);
       try {
         const items = await checkedList((nextToken) => client.models.SantasSheet.list({ limit: 200, nextToken }));
-        if (active) setSheets(items);
+        if (active) setSheets(items.filter(item => item.year === 2025));
       } catch (err) {
         if (active) setError(apiFailure(err).safeMessage);
       } finally {
@@ -37,7 +37,7 @@ export function AdminSheetsPanel({ onSelect }: AdminSheetsPanelProps) {
 
   return (
     <section className="admin-panel">
-      <h3>All submitted sheets</h3>
+      <h3>2025 legacy saved sheets</h3>
       {loading && <p>Loading…</p>}
       {error && <div role="alert"><p className="error">{error}</p><button onClick={() => setReload((value) => value + 1)} disabled={loading}>Retry loading sheets</button></div>}
       {!loading && !error && (

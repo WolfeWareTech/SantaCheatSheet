@@ -1,4 +1,4 @@
-import type { Answers, Sheet } from "../../../amplify/seasonal/service";
+import type { Answers, Sheet, Season } from "../../../amplify/seasonal/service";
 import type { Schema } from "../../../amplify/data/resource";
 import { ApiFailure, apiFailure, checkedResult, type UpstreamResult } from "../../lib/apiResults";
 
@@ -6,7 +6,7 @@ export const ACTIVE_YEAR = 2026;
 export const HISTORY_YEAR = 2025;
 export type SeasonSheet = Omit<Sheet, "lastRequest" | "lastDigest">;
 export type LegacySheet = Schema["SantasSheet"]["type"];
-export type HistoryTarget = { year: typeof HISTORY_YEAR; subject?: string; name?: string };
+export type HistoryTarget = { year: number; subject?: string; name?: string };
 export const listFields = ["favoriteCandySnack", "favoriteScents", "favoriteFastFoodPlaces", "favoriteRestaurants",
   "favoriteStores", "favoritePlaces", "wishlistTopItems"] as const;
 export const textFields = ["cellPhoneModel", "favoriteSaying", "favoriteSportsTeam", "favoriteColorsTheme",
@@ -51,9 +51,9 @@ export async function checkedSeason(operation: () => Promise<UpstreamResult<unkn
   if (!("data" in envelope) || envelope.data === undefined) throw new ApiFailure("missing_data");
   return envelope.data;
 }
-function seasonRecord(value: unknown, subject: string): SeasonSheet {
-  if (!object(value) || value.year !== ACTIVE_YEAR || value.ownerSubject !== subject || value.participantId !== subject ||
-    value.sheetId !== `${subject}:${ACTIVE_YEAR}` || !Number.isSafeInteger(value.revision) || (value.revision as number) < 0 ||
+function seasonRecord(value: unknown, subject: string, year: number): SeasonSheet {
+  if (!object(value) || value.year !== year || value.ownerSubject !== subject || value.participantId !== subject ||
+    value.sheetId !== `${subject}:${year}` || !Number.isSafeInteger(value.revision) || (value.revision as number) < 0 ||
     !["draft", "submitted"].includes(value.state as string) || !object(value.answers) ||
     ["savedAt", "submittedAt", "revisedAt"].some(key => value[key] !== null && typeof value[key] !== "string")) throw new ApiFailure("missing_data");
   const answers = value.answers;
@@ -64,24 +64,39 @@ function seasonRecord(value: unknown, subject: string): SeasonSheet {
 }
 export type SaveRequest = { year: number; answers: Answers; expectedRevision: number; intent: string; idempotencyKey: string };
 export interface SeasonalTransport {
-  queries: { seasonSheet: (args: { year: number; subject?: string }) => Promise<UpstreamResult<unknown>> };
+  queries: { seasonState: (args: { year: number }) => Promise<UpstreamResult<unknown>>; seasonSheet: (args: { year: number; subject?: string }) => Promise<UpstreamResult<unknown>> };
   mutations: {
     ensureSeasonSheet: (args: { year: number }) => Promise<UpstreamResult<unknown>>;
     saveSeasonSheet: (args: SaveRequest) => Promise<UpstreamResult<unknown>>;
   };
 }
-export function seasonApi(client: SeasonalTransport, subject: string) {
+export function seasonApi(client: SeasonalTransport, subject: string, year = ACTIVE_YEAR) {
   return {
-    ensure: async () => seasonRecord(await checkedSeason(() => client.mutations.ensureSeasonSheet({ year: ACTIVE_YEAR })), subject),
+    current: async () => {
+      const value = await checkedSeason(() => client.queries.seasonState({ year: ACTIVE_YEAR }));
+      if (!object(value) || !Number.isInteger(value.activeYear) || (value.activeYear as number) < 2026 || (value.activeYear as number) > 2100 ||
+        !object(value.season) || value.season.year !== value.activeYear || !["open", "closed"].includes(value.season.state as string) ||
+        (value.season.deadline !== null && (typeof value.season.deadline !== "string" || !Number.isFinite(Date.parse(value.season.deadline))))) throw new ApiFailure("missing_data");
+      return value.season as Season;
+    },
+    read: async () => {
+      const value = await checkedSeason(() => client.queries.seasonSheet({ year }));
+      return value === null ? null : seasonRecord(value, subject, year);
+    },
+    ensure: async () => seasonRecord(await checkedSeason(() => client.mutations.ensureSeasonSheet({ year })), subject, year),
     history: async (target: HistoryTarget): Promise<LegacySheet | null> => {
       const value = await checkedSeason(() => client.queries.seasonSheet({ year: target.year, ...(target.subject ? { subject: target.subject } : {}) }));
       if (value === null) return null;
+      if (target.year >= 2026) {
+        const record = seasonRecord(value, target.subject ?? subject, target.year);
+        return { ...editorSheet(record), id: record.sheetId, owner: record.ownerSubject } as LegacySheet;
+      }
       if (!object(value) || value.state !== "legacy_saved" || value.year !== HISTORY_YEAR || !object(value.legacy) ||
         value.legacy.year !== HISTORY_YEAR || typeof value.legacy.id !== "string" || typeof value.legacy.owner !== "string" ||
         value.legacy.owner.split("::")[0] !== (target.subject ?? subject)) throw new ApiFailure("missing_data");
       return value.legacy as LegacySheet;
     },
-    save: async (request: SaveRequest) => seasonRecord(await checkedSeason(() => client.mutations.saveSeasonSheet(request)), subject),
+    save: async (request: SaveRequest) => seasonRecord(await checkedSeason(() => client.mutations.saveSeasonSheet(request)), subject, year),
   };
 }
 export function seasonWriter(api: Pick<ReturnType<typeof seasonApi>, "save">, initial: SeasonSheet, requestId: () => string = () => crypto.randomUUID()) {
@@ -104,7 +119,7 @@ export function seasonWriter(api: Pick<ReturnType<typeof seasonApi>, "save">, in
       // payload before saving later edits. Never silently adopt another tab's revision.
       if (pending) await confirm();
       if (!sameAnswers(current.answers, answers) || current.savedAt === null) {
-        pending = { year: ACTIVE_YEAR, answers: structuredClone(answers), expectedRevision: current.revision,
+        pending = { year: current.year, answers: structuredClone(answers), expectedRevision: current.revision,
           intent: "save_draft", idempotencyKey: requestId() };
         await confirm();
       }

@@ -1,30 +1,48 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Schema } from "../amplify/data/resource";
 import { useAuthenticator } from "@aws-amplify/ui-react";
 import { fetchAuthSession, fetchUserAttributes } from "aws-amplify/auth";
 import { AdminSheetsPanel, DataManagementPanel } from "./features/admin";
+import { AnnualAdmin } from "./features/admin/AnnualAdmin";
+import { createSeasonAdminApi } from "./features/admin/seasonAdminApi";
+import { createDirectoryApi } from "./features/directory";
 import { SeasonSheets } from "./features/sheets/SeasonSheets";
 import { HISTORY_YEAR, type HistoryTarget } from "./features/sheets/seasonal";
 import { historyRoute, sheetRoute } from "./features/sheets/seasonRoute";
 
+function adminHistoryRoute(hash: string): HistoryTarget | null {
+  const legacy = historyRoute(hash);
+  if (legacy) return legacy;
+  const match = /^#\/admin\/history\/(20[2-9][0-9]|2100)(?:\/([^/]+))?$/.exec(hash);
+  if (!match) return null;
+  try { return { year: Number(match[1]), ...(match[2] ? { subject: decodeURIComponent(match[2]) } : {}) }; }
+  catch { return null; }
+}
 function App() {
   const { user, signOut } = useAuthenticator();
   const [fullName, setFullName] = useState("New friend");
   const sheetCardRef = useRef<HTMLDivElement | null>(null);
   const [selectedSheet, setSelectedSheet] = useState<Schema["SantasSheet"]["type"] | null>(null);
-  const [history, setHistory] = useState<HistoryTarget | null>(() => historyRoute(window.location.hash));
+  const [history, setHistory] = useState<HistoryTarget | null>(() => adminHistoryRoute(window.location.hash));
   const [adminSubject, setAdminSubject] = useState<string | null>(null);
   const subject = user?.userId;
+  const [sheetView, setSheetView] = useState(() => !!adminHistoryRoute(window.location.hash));
+  const previousSubject = useRef(subject);
+  const [seasonVersion, setSeasonVersion] = useState(0);
+  const directoryApi = useMemo(() => subject ? createDirectoryApi() : null, [subject]);
+  const annualApi = useMemo(() => subject ? createSeasonAdminApi() : null, [subject]);
   const isAdmin = !!subject && adminSubject === subject;
 
   function selectHistory(target: HistoryTarget | null) {
     if (target && !isAdmin) return;
+    setSheetView(true);
     setSelectedSheet(null);
     setHistory(target);
-    window.history.pushState(null, "", sheetRoute(target));
+    window.history.pushState(null, "", target && target.year !== HISTORY_YEAR
+      ? `#/admin/history/${target.year}${target.subject ? `/${encodeURIComponent(target.subject)}` : ''}` : sheetRoute(target));
   }
   useEffect(() => {
-    const navigate = () => { setSelectedSheet(null); setHistory(historyRoute(window.location.hash)); };
+    const navigate = () => { setSheetView(true); setSelectedSheet(null); setHistory(adminHistoryRoute(window.location.hash)); };
     window.addEventListener("hashchange", navigate);
     window.addEventListener("popstate", navigate);
     return () => {
@@ -53,6 +71,10 @@ function App() {
   useEffect(() => {
     let active = true;
     setAdminSubject(null);
+    if (previousSubject.current !== subject) {
+      previousSubject.current = subject;
+      setSelectedSheet(null); setHistory(null); setSheetView(false);
+    }
     void fetchAuthSession().then(session => {
       const claims = session.tokens?.accessToken.payload;
       const groups = claims?.["cognito:groups"];
@@ -80,14 +102,18 @@ function App() {
             </div>
           </header>
 
-          {user?.userId && <SeasonSheets
-            key={user.userId}
+          {isAdmin && !sheetView && <AnnualAdmin key={subject} isAdmin={isAdmin} sessionKey={subject!}
+            api={annualApi!} directory={directoryApi!} onMySheet={() => selectHistory(null)} onHistory={selectHistory}
+            onSeasonChanged={() => setSeasonVersion(v => v + 1)} />}
+          {isAdmin && sheetView && <button className="no-print no-capture" onClick={() => { setSelectedSheet(null); setHistory(null); setSheetView(false); }}>Annual dashboard</button>}
+          <div hidden={isAdmin && !sheetView}>{user?.userId && <SeasonSheets
+            key={`${user.userId}:${seasonVersion}`}
             subject={user.userId}
             name={fullName}
             isAdmin={isAdmin}
             history={history}
             onHistory={selectHistory}
-          />}
+          />}</div>
 
         </div>
 
@@ -120,8 +146,8 @@ function App() {
           </div>
         )}
 
-        {isAdmin && (
-          <>
+        {isAdmin && !sheetView && (
+          <details key={subject} className="no-print no-capture"><summary>Legacy history and data tools</summary>
             <AdminSheetsPanel onSelect={(sheet) => {
               // Selection is explicit by stable subject/year, never list order.
               if (sheet.year !== HISTORY_YEAR || !sheet.owner) return;
@@ -130,9 +156,9 @@ function App() {
               sheetCardRef.current?.scrollIntoView({ behavior: "smooth" });
             }} />
             <DataManagementPanel />
-          </>
+          </details>
         )}
-        <button className="signout-button" onClick={signOut}>
+        <button className="signout-button" onClick={() => { setAdminSubject(null); setSelectedSheet(null); setHistory(null); setSheetView(false); signOut?.(); }}>
           Sign out
         </button>
       </main>

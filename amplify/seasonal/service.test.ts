@@ -1,28 +1,38 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { service, Rejected, blankAnswers, progressOf, type Store, type Sheet, type Season, type Event } from './service';
+import { service, Rejected, blankAnswers, progressOf, type Store, type Sheet, type Season, type Event, type ActiveSeason } from './service';
 
 function fixture() {
+  let active: ActiveSeason = { activeYear: 2026, revision: 0 };
   const sheets = new Map<string, Sheet>();
   const seasons = new Map<number, Season>();
   const legacy = [{ id: 'historical', year: 2025, owner: 'alice::old-name', additionalNotes: 'history' }];
   const k = (s: string, y: number) => `${s}:${y}`;
-  const guard = (s: Season) => {
+  const guard = (s: Season, expected?: ActiveSeason) => {
+    if (expected && (expected.revision !== active.revision || s.year !== active.activeYear)) throw new Rejected('conflict');
     const live = seasons.get(s.year);
     if (live ? live.state !== 'open' || live.revision !== s.revision : s.year !== 2026 || s.revision !== 0) throw new Rejected('conflict');
   };
   const store: Store = {
+    active: async () => active,
+    seasons: async () => [...seasons.values()],
+    legacyCount: async () => legacy.length,
+    activate: async (next, expected, target, previous) => {
+      if (active.revision !== expected.revision || seasons.get(target.year)?.revision !== target.revision ||
+        seasons.get(previous.year)?.revision !== previous.revision) throw new Rejected('conflict');
+      active = next;
+    },
     season: async y => seasons.get(y) ?? null,
     configure: async (s, r) => { if ((seasons.get(s.year)?.revision ?? 0) !== r) throw new Rejected('conflict'); seasons.set(s.year, s); },
     get: async (s, y) => structuredClone(sheets.get(k(s, y)) ?? null),
-    create: async (s, season) => { guard(season); if (sheets.has(k(s.ownerSubject, s.year))) throw new Rejected('conflict'); sheets.set(k(s.ownerSubject, s.year), structuredClone(s)); },
-    save: async (s, r, season) => { guard(season); if (sheets.get(k(s.ownerSubject, s.year))?.revision !== r) throw new Rejected('conflict'); sheets.set(k(s.ownerSubject, s.year), structuredClone(s)); },
+    create: async (s, season, expected) => { guard(season, expected); if (sheets.has(k(s.ownerSubject, s.year))) throw new Rejected('conflict'); sheets.set(k(s.ownerSubject, s.year), structuredClone(s)); },
+    save: async (s, r, season, expected) => { guard(season, expected); if (sheets.get(k(s.ownerSubject, s.year))?.revision !== r) throw new Rejected('conflict'); sheets.set(k(s.ownerSubject, s.year), structuredClone(s)); },
     progress: async y => ({ items: [...sheets.values()].filter(s => s.year === y).map(progressOf), nextToken: null }),
     legacy: async () => legacy,
   };
   const run = service(store, () => '2026-11-13T23:00:00.000Z');
   const call = (field: string, args: Record<string, unknown> = {}, sub = 'alice', admin = false) => run({ field,
-    arguments: { year: 2026, ...args }, identity: { sub, claims: { sub, 'cognito:groups': admin ? ['admin'] : [] } } });
+    arguments: { year: 2026, ...(field === 'configureSeason' ? { confirmed: true } : {}), ...args }, identity: { sub, claims: { sub, 'cognito:groups': admin ? ['admin'] : [] } } });
   return { call, run, store, sheets, seasons, legacy };
 }
 test('two concurrent creates and retries resolve exactly one blank sheet without copying legacy', async () => {
@@ -37,12 +47,13 @@ test('unknown, forged and historical years are rejected; configured years stay i
   const f = fixture();
   for (const year of [2025, 2027, 2026.5, '2026', 2101]) assert.equal((await f.call('ensureSeasonSheet', { year })).ok, false);
   assert.equal((await f.call('configureSeason', { year: 2027, state: 'open', expectedRevision: 0 }, 'admin', true)).ok, true);
-  await f.call('ensureSeasonSheet'); await f.call('ensureSeasonSheet', { year: 2027 });
-  assert.equal(f.sheets.size, 2);
+  await f.call('ensureSeasonSheet');
+  assert.equal((await f.call('ensureSeasonSheet', { year: 2027 })).error?.code, 'forbidden');
+  assert.equal(f.sheets.size, 1);
 });
 test('in-flight transaction conflict retries the conditional create without reinitializing', async () => {
   const f = fixture(); const create = f.store.create; let attempts = 0;
-  f.store.create = async (sheet, season) => { if (++attempts < 3) throw new Rejected('conflict'); await create(sheet, season); };
+  f.store.create = async (sheet, season) => { if (++attempts < 3) throw new Rejected('conflict'); await create(sheet, season, { activeYear: 2026, revision: 0 }); };
   assert.equal((await f.call('ensureSeasonSheet')).ok, true);
   assert.equal(attempts, 3); assert.equal(f.sheets.size, 1);
 });
@@ -86,7 +97,7 @@ test('closed season rejects create and save; atomic store guard rejects concurre
   assert.equal((await f.call('ensureSeasonSheet')).error?.code, 'closed_season');
   assert.equal((await f.call('saveSeasonSheet', { answers: blankAnswers(), expectedRevision: 0, intent: 'save_draft', idempotencyKey: 'closed-0001' })).error?.code, 'closed_season');
   const oldSeason: Season = { year: 2026, state: 'open', revision: 0, deadline: null };
-  await assert.rejects(f.store.create([...f.sheets.values()][0], oldSeason), Rejected);
+  await assert.rejects(f.store.create([...f.sheets.values()][0], oldSeason, { activeYear: 2026, revision: 0 }), Rejected);
 });
 test('legacy lookup is deterministic, immutable and never fabricates submittedAt; ambiguity fails', async () => {
   const f = fixture(); const before = structuredClone(f.legacy);
@@ -132,4 +143,96 @@ test('SDK failures return sanitized error without values', async () => {
   const f = fixture(); f.store.get = async () => { throw new Error('private-answer-or-token'); };
   const result = await f.call('ensureSeasonSheet');
   assert.equal(result.ok, false); assert.equal(JSON.stringify(result).includes('private-answer-or-token'), false);
+});
+
+
+test('annual start/open/close/activate is explicit, confirmed, forward-only and creates no answer rows', async () => {
+  const f = fixture();
+  const configure = (year: number, state: string, expectedRevision: number, extra = {}) =>
+    f.call('configureSeason', { year, state, expectedRevision, ...extra }, 'admin', true);
+  const activate = (extra = {}) => f.call('activateSeason', { year: 2027, expectedRevision: 2, expectedActiveRevision: 0, confirmed: true, ...extra }, 'admin', true);
+  assert.equal((await configure(2027, 'closed', 0, { confirmed: false })).error?.code, 'confirmation_required');
+  assert.equal((await configure(2027, 'closed', 0)).ok, true);
+  assert.equal((await configure(2027, 'open', 1)).ok, true);
+  assert.equal((await activate()).error?.code, 'validation', 'current active year must be closed');
+  await configure(2026, 'closed', 0);
+  assert.equal((await activate({ expectedRevision: 1 })).error?.code, 'conflict');
+  assert.equal((await activate({ confirmed: false })).error?.code, 'confirmation_required');
+  assert.equal((await activate()).ok, true);
+  assert.equal(((await f.call('seasonState')).data as ActiveSeason).activeYear, 2027);
+  assert.equal(f.sheets.size, 0, 'metadata mutations never seed sheets');
+  assert.equal((await configure(2026, 'open', 1)).error?.code, 'validation');
+  assert.equal((await f.call('ensureSeasonSheet', { year: 2027 })).ok, true);
+  assert.deepEqual(f.sheets.get('alice:2027')?.answers, blankAnswers());
+});
+
+test('previous seasonal years become admin-only before any answer reads, current draft remains private', async () => {
+  const f = fixture(); await f.call('ensureSeasonSheet');
+  await f.call('saveSeasonSheet', { answers: { ...blankAnswers(), additionalNotes: 'synthetic same-season work' }, expectedRevision: 0, intent: 'save_draft', idempotencyKey: 'save-before-switch' });
+  const before = structuredClone(f.sheets.get('alice:2026'));
+  await f.call('configureSeason', { state: 'closed', expectedRevision: 0 }, 'admin', true);
+  await f.call('configureSeason', { year: 2027, state: 'open', expectedRevision: 0 }, 'admin', true);
+  await f.call('activateSeason', { year: 2027, expectedRevision: 1, expectedActiveRevision: 0, confirmed: true }, 'admin', true);
+  let reads = 0; const get = f.store.get; f.store.get = async (...a) => { reads++; return get(...a); };
+  for (const field of ['seasonSheet', 'ensureSeasonSheet', 'saveSeasonSheet']) assert.equal((await f.call(field)).error?.code, 'forbidden');
+  assert.equal(reads, 0);
+  assert.equal((await f.call('seasonSheet', {}, 'alice', true)).ok, true, 'admin can read own historical draft');
+  assert.equal((await f.call('seasonSheet', { subject: 'alice' }, 'admin', true)).error?.code, 'forbidden', 'other drafts remain private');
+  assert.deepEqual(f.sheets.get('alice:2026'), before);
+  await f.call('ensureSeasonSheet', { year: 2027 });
+  assert.deepEqual(f.sheets.get('alice:2027')?.answers, blankAnswers());
+  assert.deepEqual(f.sheets.get('alice:2026'), before);
+});
+
+test('close/reopen retains saved work, optional deadline defaults to null and server time stops edits', async () => {
+  const f = fixture(); await f.call('ensureSeasonSheet');
+  const before = structuredClone(f.sheets.get('alice:2026'));
+  await f.call('configureSeason', { state: 'closed', expectedRevision: 0 }, 'admin', true);
+  assert.equal((await f.call('seasonSheet')).ok, true, 'closed current year remains readable');
+  await f.call('configureSeason', { state: 'open', expectedRevision: 1 }, 'admin', true);
+  assert.deepEqual(((await f.call('ensureSeasonSheet')).data as Sheet).answers, before?.answers);
+  assert.equal(f.seasons.get(2026)?.deadline, null);
+  for (const deadline of ['tomorrow', '2026-02-30T00:00:00Z', '2026-11-13T23:00:00']) {
+    assert.equal((await f.call('configureSeason', { state: 'open', expectedRevision: 2, deadline }, 'admin', true)).error?.code, 'validation');
+  }
+  await f.call('configureSeason', { state: 'open', expectedRevision: 2, deadline: '2026-11-13T22:00:00Z' }, 'admin', true);
+  assert.equal((await f.call('ensureSeasonSheet')).error?.code, 'closed_season');
+  assert.deepEqual(f.sheets.get('alice:2026'), before);
+});
+
+test('dashboard has exact complete metadata totals, no answers or invented submissions, failures fail closed', async () => {
+  const f = fixture();
+  await f.call('ensureSeasonSheet'); await f.call('ensureSeasonSheet', {}, 'bob');
+  await f.call('saveSeasonSheet', { answers: blankAnswers(), expectedRevision: 0, intent: 'save_draft', idempotencyKey: 'dashboard-save' });
+  const dashboard = await f.call('seasonAdmin', {}, 'admin', true);
+  assert.equal(dashboard.ok, true);
+  assert.deepEqual((dashboard.data as { totals: unknown }).totals, { initialized: 2, saved: 1, unsaved: 1, legacySaved: 0 });
+  assert.equal(JSON.stringify(dashboard).includes('answers'), false);
+  assert.equal(JSON.stringify(dashboard).includes('submitted'), false);
+  assert.deepEqual(((await f.call('seasonAdmin', { year: 2025 }, 'admin', true)).data as { totals: unknown }).totals, { initialized: 0, saved: 0, unsaved: 0, legacySaved: 1 });
+  assert.equal(((await f.call('seasonAdmin', { year: 2028 }, 'admin', true)).data as { totals: unknown }).totals, null);
+  f.store.progress = async () => { throw new Error('PRIVATE'); };
+  const failed = await f.call('seasonAdmin', {}, 'admin', true);
+  assert.equal(failed.ok, false); assert.equal('data' in failed, false); assert.equal(JSON.stringify(failed).includes('PRIVATE'), false);
+});
+
+test('dashboard pagination includes every page and rejects duplicates, token loops and malformed rows', async () => {
+  const f = fixture(); const a = { participantId: 'a', year: 2026, state: 'draft', savedAt: null };
+  f.store.progress = async (_year, token) => token ? { items: [{ ...a, participantId: 'b', savedAt: '2026-11-13T00:00:00Z' }], nextToken: null } : { items: [a], nextToken: 'page-two' };
+  assert.deepEqual(((await f.call('seasonAdmin', {}, 'admin', true)).data as { totals: unknown }).totals, { initialized: 2, saved: 1, unsaved: 1, legacySaved: 0 });
+  for (const page of [{ items: [a, a], nextToken: null }, { items: [{ ...a, year: 2025 }], nextToken: null }, { items: [a], nextToken: 'loop' }]) {
+    f.store.progress = async () => page;
+    assert.equal((await f.call('seasonAdmin', {}, 'admin', true)).ok, false);
+  }
+});
+
+test('all administrator operations deny ordinary and malformed claims before storage; all GETs create nothing', async () => {
+  const f = fixture(); let reads = 0; f.store.active = async () => { reads++; return { activeYear: 2026, revision: 0 }; };
+  for (const field of ['configureSeason', 'activateSeason', 'seasonAdmin', 'seasonProgress']) {
+    assert.equal((await f.call(field, { confirmed: true })).error?.code, 'forbidden');
+    for (const groups of ['admin', ['Admin'], []]) assert.equal((await f.run({ field, arguments: { year: 2026 }, identity: { sub: 'alice', claims: { sub: 'alice', 'cognito:groups': groups } } })).error?.code, 'forbidden');
+  }
+  assert.equal(reads, 0);
+  for (const field of ['seasonState', 'seasonSheet', 'seasonAdmin', 'seasonProgress']) await f.call(field, {}, 'admin', true);
+  assert.equal(f.sheets.size, 0);
 });

@@ -1,12 +1,17 @@
 import { DynamoDBClient, GetItemCommand, PutItemCommand, QueryCommand, ScanCommand,
   TransactWriteItemsCommand, type AttributeValue, type TransactWriteItem } from '@aws-sdk/client-dynamodb';
 import { service, Rejected, progressOf, LAUNCH_YEAR, legacySubject,
-  type Event, type Store, type Sheet, type Season } from './service';
+  type Event, type Store, type Sheet, type Season, type ActiveSeason } from './service';
 
 const client = new DynamoDBClient({ region: process.env.AWS_REGION, maxAttempts: 3 });
 const table = process.env.SEASON_TABLE!;
 const key = (pk: string, sk: string) => ({ pk: { S: pk }, sk: { S: sk } });
 const sheetKey = (subject: string, year: number) => key(`RESPONSE#${subject}`, `YEAR#${year}`);
+const activeKey = () => key('CONFIG', 'ACTIVE');
+const activeCheck = (active: ActiveSeason): TransactWriteItem => ({ ConditionCheck: { TableName: table, Key: activeKey(),
+  ConditionExpression: active.revision === 0 ? 'attribute_not_exists(pk)' : 'revision = :revision',
+  ...(active.revision === 0 ? {} : { ExpressionAttributeValues: { ':revision': { N: String(active.revision) } } }),
+} });
 const seasonKey = (year: number) => key('CONFIG', `YEAR#${year}`);
 async function document<T>(Key: ReturnType<typeof key>): Promise<T | null> {
   const result = await client.send(new GetItemCommand({ TableName: table, Key, ConsistentRead: true }));
@@ -24,9 +29,9 @@ function seasonCheck(season: Season): TransactWriteItem {
     } : {}),
   } };
 }
-async function write(sheet: Sheet, season: Season, expectedRevision?: number) {
+async function write(sheet: Sheet, season: Season, active: ActiveSeason, expectedRevision?: number) {
   try {
-    await client.send(new TransactWriteItemsCommand({ TransactItems: [seasonCheck(season),
+    await client.send(new TransactWriteItemsCommand({ TransactItems: [activeCheck(active), seasonCheck(season),
       { Put: { TableName: table, Item: { ...sheetKey(sheet.ownerSubject, sheet.year),
         revision: { N: String(sheet.revision) }, document: { S: JSON.stringify(sheet) } },
       ConditionExpression: expectedRevision === undefined ? 'attribute_not_exists(pk)' : 'revision = :revision',
@@ -51,6 +56,44 @@ function fromAttribute(value: AttributeValue): unknown {
   throw new Rejected('validation');
 }
 export const store: Store = {
+  active: async () => await document<ActiveSeason>(activeKey()) ?? { activeYear: LAUNCH_YEAR, revision: 0 },
+  async seasons() {
+    const result: Season[] = []; let start: Record<string, AttributeValue> | undefined;
+    do {
+      const page = await client.send(new QueryCommand({ TableName: table, ConsistentRead: true,
+        KeyConditionExpression: 'pk = :pk AND begins_with(sk, :prefix)',
+        ExpressionAttributeValues: { ':pk': { S: 'CONFIG' }, ':prefix': { S: 'YEAR#' } }, ExclusiveStartKey: start }));
+      result.push(...(page.Items ?? []).map(item => JSON.parse(item.document.S!) as Season)); start = page.LastEvaluatedKey;
+    } while (start);
+    return result;
+  },
+  async activate(next, expected, target, previous) {
+    const check = (season: Season): TransactWriteItem => ({ ConditionCheck: { TableName: table, Key: seasonKey(season.year),
+      ConditionExpression: 'revision = :revision AND #state = :state', ExpressionAttributeNames: { '#state': 'state' },
+      ExpressionAttributeValues: { ':revision': { N: String(season.revision) }, ':state': { S: season.state } } } });
+    try {
+      await client.send(new TransactWriteItemsCommand({ TransactItems: [
+        { Put: { TableName: table, Item: { ...activeKey(), revision: { N: String(next.revision) }, document: { S: JSON.stringify(next) } },
+          ConditionExpression: expected.revision === 0 ? 'attribute_not_exists(pk)' : 'revision = :revision',
+          ...(expected.revision === 0 ? {} : { ExpressionAttributeValues: { ':revision': { N: String(expected.revision) } } }),
+        } }, check(target), check(previous),
+      ] }));
+    } catch (error) {
+      if (error instanceof Error && error.name === 'TransactionCanceledException') throw new Rejected('conflict');
+      throw error;
+    }
+  },
+  async legacyCount() {
+    let count = 0; let start: Record<string, AttributeValue> | undefined;
+    do {
+      const page = await client.send(new ScanCommand({ TableName: process.env.LEGACY_TABLE!, ConsistentRead: true,
+        Select: 'COUNT', FilterExpression: '#year = :year', ExpressionAttributeNames: { '#year': 'year' },
+        ExpressionAttributeValues: { ':year': { N: '2025' } }, ExclusiveStartKey: start }));
+      if (page.Count === undefined) throw new Rejected('missing_data');
+      count += page.Count; start = page.LastEvaluatedKey;
+    } while (start);
+    return count;
+  },
   season: year => document<Season>(seasonKey(year)),
   get: (subject, year) => document<Sheet>(sheetKey(subject, year)),
   async configure(season, expectedRevision) {
@@ -65,8 +108,8 @@ export const store: Store = {
       throw error;
     }
   },
-  create: (sheet, season) => write(sheet, season),
-  save: (sheet, expectedRevision, season) => write(sheet, season, expectedRevision),
+  create: (sheet, season, active) => write(sheet, season, active),
+  save: (sheet, expectedRevision, season, active) => write(sheet, season, active, expectedRevision),
   async progress(year, token) {
     let start: Record<string, AttributeValue> | undefined;
     if (token) {

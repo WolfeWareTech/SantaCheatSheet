@@ -21,8 +21,13 @@ const schema = a.schema({
     .returns(a.json()).authorization(allow => [allow.authenticated()]).handler(seasonalHandler),
   seasonProgress: a.query().arguments({ year: a.integer().required(), nextToken: a.string() }).returns(a.json())
     .authorization(allow => [allow.groups(['admin'])]).handler(seasonalHandler),
+  seasonAdmin: a.query().arguments({ year: a.integer().required() }).returns(a.json())
+    .authorization(allow => [allow.groups(['admin'])]).handler(seasonalHandler),
+  activateSeason: a.mutation().arguments({ year: a.integer().required(), expectedRevision: a.integer().required(),
+    expectedActiveRevision: a.integer().required(), confirmed: a.boolean().required() }).returns(a.json())
+    .authorization(allow => [allow.groups(['admin'])]).handler(seasonalHandler),
   configureSeason: a.mutation().arguments({ year: a.integer().required(), state: a.string().required(),
-    expectedRevision: a.integer().required(), deadline: a.datetime() }).returns(a.json())
+    expectedRevision: a.integer().required(), confirmed: a.boolean().required(), deadline: a.datetime() }).returns(a.json())
     .authorization(allow => [allow.groups(['admin'])]).handler(seasonalHandler),
   SantasSheet: a
     .model({

@@ -12,7 +12,13 @@ import { adminEmails } from "../../../config/adminConfig";
 
 let host: HTMLDivElement;
 let root: Root;
-async function render(element: ReactNode = <App />) { await act(async () => { root.render(element); }); }
+async function render(element: ReactNode = <App />) {
+  await act(async () => { root.render(element); });
+  // Tests that exercise the editor follow the explicit dashboard/start workflow.
+  if (host.textContent?.includes('Annual Santa dashboard')) await click('My sheet');
+  const start = [...host.querySelectorAll('button')].find(b => visible(b) && /^Start my blank/.test(b.textContent ?? ''));
+  if (start) await act(async () => start.click());
+}
 function visible(element: Element) { return !element.closest("[hidden]"); }
 async function click(text: string) {
   const button = [...host.querySelectorAll("button")].find(item => item.textContent === text && visible(item));
@@ -75,7 +81,7 @@ test("history is read-only, uses selected subject/year, and preserves unsaved cu
   assert.ok(answers().every(input => input.readOnly));
   assert.ok(![...host.querySelectorAll("button")].some(item => visible(item) && item.textContent === "Save sheet"));
   await render();
-  await click("Your 2026 sheet");
+  await click("My sheet");
   assert.equal(answers()[0].value, "unsaved 2026 draft");
   await click("Save sheet");
   assert.deepEqual(fixture.legacy, legacy);
@@ -213,7 +219,7 @@ test("history URL retains explicit person/year across refresh; unsupported years
   await render(<div />); await render();
   assert.ok(host.textContent?.includes("Historical Bob — 2025 history"));
   assert.equal(answers()[answers().length - 1].value, "bob history");
-  await click("Your 2026 sheet");
+  await click("My sheet");
   assert.equal(window.location.hash, "#/sheets/2026");
   assert.ok(answers().every(input => input.value === ""));
   for (const hash of ["", "#/sheets/2027", "#/sheets/2042", "#/sheets/2025/%ZZ"]) assert.equal(historyRoute(hash), null);
@@ -242,4 +248,56 @@ test("answer mapping round-trips every field without identity/year and uncertain
   await assert.rejects(save({ ...mapped, additionalNotes: "first" }));
   const final = await save({ ...mapped, additionalNotes: "later edits" });
   assert.equal(final.revision, 2); assert.equal(final.answers.additionalNotes, "later edits");
+});
+
+
+test('landing fetches only state/read, creates nothing until explicit authenticated start', async () => {
+  await act(async () => root.render(<App />));
+  assert.equal(fixture.sheets.size, 0);
+  assert.ok(!fixture.calls.some(c => c.field === 'ensureSeasonSheet'));
+  assert.ok(host.textContent?.includes('Start my blank 2026 sheet'));
+  await click('Start my blank 2026 sheet'); assert.equal(fixture.sheets.size, 1);
+});
+test('backend active year drives current sheet and writer; future year is blank and same-year saved work resumes', async () => {
+  const old = await seasonApi(generateClient(), 'alice').ensure();
+  const writer = seasonWriter(seasonApi(generateClient(), 'alice'), old, () => 'old-synthetic-work');
+  await writer({ ...blankAnswers(), additionalNotes: 'preserved older year' });
+  const before = structuredClone(fixture.sheets.get('alice:2026'));
+  fixture.active = { activeYear: 2027, revision: 1 };
+  fixture.seasons.set(2027, { year: 2027, state: 'open', revision: 1, deadline: null });
+  await render(); assert.ok(host.textContent?.includes('Your 2027 Santa sheet'));
+  assert.deepEqual(fixture.sheets.get('alice:2027')?.answers, blankAnswers());
+  await edit('new-year draft'); await click('Save sheet');
+  assert.ok(fixture.calls.filter(c => c.field === 'saveSeasonSheet').at(-1)?.args.year === 2027);
+  await render(<div />); await render(); assert.equal(answers()[0].value, 'new-year draft');
+  assert.deepEqual(fixture.sheets.get('alice:2026'), before);
+});
+test('closed active year reads saved work without ensure and presents a read-only editor', async () => {
+  await seasonApi(generateClient(), 'alice').ensure();
+  fixture.seasons.set(2026, { year: 2026, state: 'closed', revision: 1, deadline: null }); fixture.calls = [];
+  await render(); assert.equal(answers().length, 17); assert.ok(answers().every(a => a.readOnly));
+  assert.ok(!fixture.calls.some(c => c.field === 'ensureSeasonSheet'));
+  assert.ok(![...host.querySelectorAll('button')].some(b => b.textContent === 'Save sheet'));
+});
+test('verified admin lands at annual dashboard and account switch clears private sheet before next session', async () => {
+  fixture.admin = true; await act(async () => root.render(<App />));
+  assert.ok(host.textContent?.includes('Annual Santa dashboard')); assert.equal(fixture.sheets.size, 0);
+  await click('My sheet'); await click('Start my blank 2026 sheet'); await edit('private previous admin draft');
+  fixture.subject = 'bob'; fixture.admin = false;
+  await act(async () => root.render(<App />));
+  assert.ok(!host.textContent?.includes('Annual Santa dashboard'));
+  assert.ok(![...host.querySelectorAll('textarea')].some(t => t.value === 'private previous admin draft'));
+  assert.ok(!host.textContent?.includes('Private family directory'));
+});
+
+test('former current year has stable admin-only history route after active-year switch and refresh', async () => {
+  await seasonApi(generateClient(), 'alice').ensure();
+  fixture.admin = true; fixture.active = { activeYear: 2027, revision: 1 };
+  fixture.seasons.set(2027, { year: 2027, state: 'open', revision: 1, deadline: null });
+  window.history.replaceState(null, '', '#/admin/history/2026');
+  await render(); assert.ok(host.textContent?.includes('2026 history')); assert.ok(answers().every(a => a.readOnly));
+  await render(<div />); await render(); assert.ok(host.textContent?.includes('2026 history'));
+  fixture.subject = 'bob'; fixture.admin = false; fixture.calls = [];
+  await act(async () => root.render(<App />));
+  assert.ok(!fixture.calls.some(c => c.field === 'seasonSheet' && c.args.year === 2026));
 });

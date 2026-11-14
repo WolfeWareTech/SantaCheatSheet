@@ -1,0 +1,8 @@
+.annual-admin { display: grid; gap: 1rem; }
+.annual-admin form, .annual-admin__controls { display: flex; flex-wrap: wrap; gap: .75rem; align-items: end; }
+.annual-admin label { display: grid; gap: .35rem; }
+.annual-admin input, .annual-admin select { max-width: 100%; padding: .6rem; }
+.annual-admin dl { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .5rem 1rem; }
+.annual-admin dd { margin: 0; font-weight: bold; }
+.annual-admin [role="dialog"] { border: 2px solid #8e252a; border-radius: .75rem; padding: 1rem; background: #fff9ed; }
+.annual-admin [role="dialog"] button { margin: .3rem; }
