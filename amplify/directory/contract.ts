@@ -11,7 +11,10 @@ export type ContactFields = {
   phoneOptOut: boolean;
   participation: { year: number; state: 'unknown' | 'active' | 'excluded' };
 };
+export type AnnualParticipation = { state: 'unknown' | 'active' | 'excluded'; excluded: boolean;
+  review: 'pending' | 'reviewed'; updatedAt: string };
 export type Contact = ContactFields & {
+  annualParticipation?: Record<string, AnnualParticipation>;
   id: string;
   subject: string | null;
   registeredEmail: string | null;
@@ -46,6 +49,22 @@ export function contactFields(value: unknown): ContactFields {
 export function fieldsOf(contact: Contact): ContactFields {
   return Object.fromEntries(editableKeys.map(k => [k, contact[k]])) as ContactFields;
 }
+export const validParticipationYear = (year: unknown): year is number => Number.isInteger(year) && (year as number) >= 2027 && (year as number) <= 2100;
+export function validAnnualParticipation(value: unknown): value is AnnualParticipation {
+  return object(value) && Object.keys(value).length === 4 && ['unknown', 'active', 'excluded'].includes(value.state as string) &&
+    typeof value.excluded === 'boolean' && ['pending', 'reviewed'].includes(value.review as string) &&
+    typeof value.updatedAt === 'string' && Number.isFinite(Date.parse(value.updatedAt));
+}
+export function participationFor(contact: Contact, year: number) {
+  if (year === DIRECTORY_YEAR) return { state: contact.participation.state, excluded: contact.excluded,
+    review: contact.provenance.review, updatedAt: contact.updatedAt };
+  return contact.annualParticipation?.[String(year)] ?? { state: 'unknown' as const, excluded: true, review: 'pending' as const, updatedAt: null };
+}
+export function activeParticipationCount(directory: Directory, year: number) {
+  return directory.contacts.filter(c => {
+    const p = participationFor(c, year); return !c.archived && !p.excluded && p.state === 'active';
+  }).length;
+}
 export function validDirectory(value: unknown): value is Directory {
   if (!object(value) || !Number.isSafeInteger(value.revision) || (value.revision as number) < 0 || !Array.isArray(value.contacts) || value.contacts.length > 200) return false;
   const ids = new Set<string>();
@@ -61,18 +80,21 @@ export function validDirectory(value: unknown): value is Directory {
         (c.registeredEmail !== null && (typeof c.registeredEmail !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.registeredEmail))) ||
         (c.mapping === 'verified' && (!c.subject || !c.registeredEmail)) ||
         (c.mapping === 'unregistered' && (c.subject !== null || c.registeredEmail !== null))) return false;
+      if (c.annualParticipation !== undefined && (!object(c.annualParticipation) ||
+        Object.entries(c.annualParticipation).some(([year, observation]) => !/^\d{4}$/.test(year) || !validParticipationYear(Number(year)) || !validAnnualParticipation(observation)))) return false;
       contactFields(fieldsOf(c as Contact)); ids.add(c.id); return true;
     } catch { return false; }
   });
 }
 /** Recompute against the complete revision before any future personalized send. Never merge records. */
-export function previewDirectory(directory: Directory): Preview[] {
+export function previewDirectory(directory: Directory, year = DIRECTORY_YEAR): Preview[] {
   return directory.contacts.map(c => {
     const reasons: string[] = [];
+    const participation = participationFor(c, year);
     if (c.archived) reasons.push('archived');
-    if (c.excluded) reasons.push('excluded');
-    if (c.participation.year !== DIRECTORY_YEAR || c.participation.state !== 'active') reasons.push('participation_not_approved');
-    if (c.provenance.review !== 'reviewed') reasons.push('review_pending');
+    if (participation.excluded) reasons.push('excluded');
+    if (participation.state !== 'active') reasons.push('participation_not_approved');
+    if (participation.review !== 'reviewed') reasons.push('review_pending');
     const emails = (r: Contact) => [r.contactEmail, r.registeredEmail].filter((e): e is string => !!e).map(e => e.toLowerCase());
     if (directory.contacts.some(other => other.id !== c.id &&
       ((c.subject && c.subject === other.subject) || (c.phone && c.phone === other.phone) ||

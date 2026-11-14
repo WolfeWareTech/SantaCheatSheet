@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { apiFailure } from '../../lib/apiResults';
+import { AnnualParticipationPanel } from '../directory/AnnualParticipationPanel';
+import type { participationApi } from '../directory/participationApi';
+import { activeParticipationCount } from '../../../amplify/directory/contract';
 import { DirectoryPanel } from '../directory';
 import type { directoryApi, Snapshot } from '../directory/api';
 import { NativeSeasonShare } from '../invitations/native-share/NativeSeasonShare';
@@ -8,12 +11,13 @@ import type { seasonAdminApi, Dashboard, Configure, Activate } from './seasonAdm
 import './annualAdmin.css';
 
 type Props = { isAdmin: boolean; sessionKey: string; api: ReturnType<typeof seasonAdminApi>; directory: ReturnType<typeof directoryApi>;
+  participation: ReturnType<typeof participationApi>;
   onMySheet: () => void; onHistory: (target: HistoryTarget) => void; onSeasonChanged: () => void };
 export function AnnualAdmin(props: Props) {
   if (!props.isAdmin) return null;
   return <AdminHome key={props.sessionKey} {...props} />;
 }
-function AdminHome({ api, directory, sessionKey, onMySheet, onHistory, onSeasonChanged }: Props) {
+function AdminHome({ api, directory, participation, sessionKey, onMySheet, onHistory, onSeasonChanged }: Props) {
   const [year, setYear] = useState(2026);
   const [yearInput, setYearInput] = useState('2026');
   const [data, setData] = useState<Dashboard | null>(null);
@@ -67,7 +71,7 @@ function AdminHome({ api, directory, sessionKey, onMySheet, onHistory, onSeasonC
       setError(apiFailure(reason).safeMessage); setData(null); setPending(null);
     } finally { pendingWrite.current = false; setBusy(false); }
   }
-  const activePeople = year === 2026 && people ? people.contacts.filter(c => !c.archived && !c.excluded && c.participation.year === 2026 && c.participation.state === 'active').length : null;
+  const activePeople = year >= 2026 && people ? activeParticipationCount(people, year) : null;
   return <section className="annual-admin no-print no-capture" aria-label="Annual administration">
     <h2>Annual Santa dashboard</h2>
     <div><button onClick={onMySheet}>My sheet</button> <button disabled={busy || loading} onClick={() => setReload(v => v + 1)}>Refresh dashboard</button></div>
@@ -92,7 +96,7 @@ function AdminHome({ api, directory, sessionKey, onMySheet, onHistory, onSeasonC
         </>}
         <dt>Active directory participants ({year})</dt><dd>{activePeople === null ? 'Unknown' : activePeople}</dd>
       </dl>}
-      <p>Saved sheets are not submission totals. Submission tracking is pending. Directory participation is available only for 2026 and does not prove a save, submission, or delivery.</p>
+      <p>Saved sheets are not submission totals. Submission tracking is pending. Directory participation is tracked separately for each year and does not prove a save, submission, or delivery.</p>
       {directoryError && <p role="status">Directory totals unavailable. Refresh to retry.</p>}
       {!selected && <p>No season metadata or totals are available for {year}. Starting a season creates metadata only; each person starts a blank sheet explicitly.</p>}
       {year < data.activeYear && <><p>Historical season · administrator access only · read-only answers.</p><button onClick={() => onHistory({ year })}>View my {year} history</button></>}
@@ -115,6 +119,8 @@ function AdminHome({ api, directory, sessionKey, onMySheet, onHistory, onSeasonC
         <p>{pending.kind === 'activate' ? `Everyone will open ${year} after sign-in. Previous years become administrator-only history. New answers start blank.` : `Season will be ${pending.args.state}. Deadline: ${pending.args.deadline ?? 'none'}. Closing or an elapsed deadline prevents edits.`} Saved answers are retained.</p>
         <button disabled={busy} onClick={() => { void confirm(); }}>Confirm season change</button><button disabled={busy} onClick={() => setPending(null)}>Cancel</button>
       </div>}
+      {year >= 2027 && <AnnualParticipationPanel year={year} api={participation} isAdmin sessionKey={sessionKey} onSaved={setPeople} />}
+      {data.activeYear > 2026 && <p>Invitation and native share integration for future seasons is pending. This dashboard does not send messages.</p>}
       {data.activeYear === 2026 && <NativeSeasonShare />}
     </>}
     <details><summary>Private family directory</summary><DirectoryPanel api={directory} isAdmin sessionKey={sessionKey} /></details>

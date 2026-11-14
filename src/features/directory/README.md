@@ -48,3 +48,15 @@ node_modules/.bin/tsc --noEmit -p amplify/tsconfig.json
 Build-only local outputs use `{}` as in predecessor checks. This is not deployment or
 production API proof. Local tests and CDK synthesis use synthetic values and no cloud calls.
 Real seed/provenance and release gates remain outside Git in the P08 result/private paths.
+
+
+P09 adds optional per-contact `annualParticipation` observations for 2027..2100.
+The original 2026 participation/exclusion/review and identity provenance are retained.
+An absent future entry means unknown/excluded/pending; no approvals are copied.
+`AnnualParticipationPanel` and `createParticipationApi()` are mounted from the annual
+admin dashboard for its selected year, with the same verified subject/session gate.
+A dedicated `directoryParticipation` mutation changes only that year's observation
+and normal revision/update timestamps. Generic contact updates preserve all yearly
+observations. `previewDirectory(snapshot, year)` evaluates the requested year; its
+omitted-year default remains 2026 for predecessor compatibility. Sending for future
+years is pending P13 and no personalized link or delivery is claimed here.

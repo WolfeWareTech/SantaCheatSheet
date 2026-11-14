@@ -36,3 +36,12 @@ write/history guards and existing current-year sheet access.
 Implementation follows the existing custom Lambda data-source pattern and
 [Amplify custom operations](https://docs.amplify.aws/react/build-a-backend/data/custom-business-logic/)
 and [authorization rules](https://docs.amplify.aws/react/build-a-backend/data/customize-authz/).
+
+
+P09 compatibility: `annualParticipation` is an optional map of yearly observations
+for 2027..2100, written by admin-only `directoryParticipation` using the existing
+snapshot revision/size guard. Missing entries default unknown/excluded/pending.
+Original 2026 membership, mapping/source provenance and opt-outs are preserved;
+no seed rewrite or migration is needed. Generic updates retain this map. Future
+senders must explicitly select/revalidate membership year; never infer it from the
+browser clock or treat the default-2026 preview as future approval.

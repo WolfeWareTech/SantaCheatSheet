@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { directoryService, type Event, type Store } from './service';
-import { contactFields, DirectoryRejected, fieldsOf, previewDirectory, type Contact, type Directory } from './contract';
+import { contactFields, DirectoryRejected, fieldsOf, previewDirectory, participationFor, activeParticipationCount, validDirectory, type Contact, type Directory } from './contract';
 import { directoryApi, type DirectoryTransport } from '../../src/features/directory/api';
 export const synthetic = (id = 'synthetic-a'): Contact => ({ id, subject: id, registeredEmail: `${id}@example.invalid`,
   displayName: id, contactEmail: `${id}@example.invalid`, phone: null, preferredChannel: 'email', archived: false,
@@ -21,7 +21,7 @@ test('regular, anonymous, mismatched and forged group claims cannot read or muta
   const f = fixture();
   for (const identity of [null, { sub: 'user', claims: { sub: 'user' } }, { sub: 'user', claims: { sub: 'other', 'cognito:groups': ['admin'] } },
     { sub: 'user', claims: { sub: 'user', 'cognito:groups': 'admin' } }]) {
-    for (const field of ['directoryList', 'directoryUpdate', 'directoryCreateInvitee']) {
+    for (const field of ['directoryList', 'directoryUpdate', 'directoryCreateInvitee', 'directoryParticipation']) {
       assert.equal((await f.call(field, {}, identity)).error?.code, 'forbidden');
     }
   }
@@ -98,4 +98,38 @@ test('checked API rejects mixed errors, missing/malformed data and unconfirmed p
   for (const v of [null, {}, { ok: true }, { ok: true, data: {} }, { ok: false, error: { code: 'forbidden' } }]) { value = v; await assert.rejects(api.list()); }
   value = JSON.stringify({ ok: true, data: { revision: 1, contacts: [synthetic()] } }); assert.equal((await api.list()).revision, 1);
   await assert.rejects(api.update(synthetic(), fieldsOf(synthetic()), 1, true));
+});
+
+test('future participation starts unknown/excluded with no approval carryover and preserves every 2026 identity/choice/provenance', async () => {
+  const f = fixture(); const original = structuredClone(f.db().contacts[0]);
+  assert.equal(previewDirectory(f.db(), 2026)[0].approvedCurrentRecipient, true);
+  assert.deepEqual(participationFor(original, 2027), { state: 'unknown', excluded: true, review: 'pending', updatedAt: null });
+  assert.equal(activeParticipationCount(f.db(), 2027), 0); assert.equal(previewDirectory(f.db(), 2027)[0].approvedCurrentRecipient, false);
+  assert.equal((await f.call('directoryParticipation', { id: original.id, year: 2027, state: 'active', excluded: false, reviewed: true, expectedRevision: 1 })).ok, true);
+  const after = f.db().contacts[0];
+  for (const field of ['subject', 'registeredEmail', 'mapping', 'provenance', ...Object.keys(fieldsOf(original))] as (keyof Contact)[]) assert.deepEqual(after[field], original[field]);
+  assert.equal(activeParticipationCount(f.db(), 2027), 1); assert.equal(previewDirectory(f.db(), 2027)[0].approvedCurrentRecipient, true);
+  assert.equal(previewDirectory(f.db(), 2026)[0].approvedCurrentRecipient, true);
+  assert.equal(activeParticipationCount(f.db(), 2028), 0);
+  await f.call('directoryParticipation', { id: original.id, year: 2028, state: 'excluded', excluded: true, reviewed: false, expectedRevision: 2 });
+  assert.deepEqual(f.db().contacts[0].annualParticipation?.['2027'], after.annualParticipation?.['2027']);
+  assert.equal(activeParticipationCount(f.db(), 2027), 1); assert.equal(activeParticipationCount(f.db(), 2028), 0);
+  const generic = { ...fieldsOf(f.db().contacts[0]), phoneOptOut: true };
+  await f.call('directoryUpdate', { id: original.id, fields: generic, reviewed: true, expectedRevision: 3 });
+  assert.deepEqual(f.db().contacts[0].annualParticipation?.['2027'], after.annualParticipation?.['2027']);
+});
+test('annual participation validates exact year/fields, conflicts fail closed and opt-outs/archive/duplicates still block previews', async () => {
+  const f = fixture(); const args = { id: 'synthetic-a', year: 2027, state: 'active', excluded: false, reviewed: true, expectedRevision: 1 };
+  for (const patch of [{ year: 2026 }, { year: 2025 }, { year: 2101 }, { year: 2027.5 }, { state: 'submitted' }, { excluded: 'false' }, { reviewed: 1 }, { subject: 'forged' }, { fields: {} }]) {
+    assert.equal((await f.call('directoryParticipation', { ...args, ...patch })).error?.code, 'validation');
+  }
+  const responses = await Promise.all([f.call('directoryParticipation', args), f.call('directoryParticipation', args)]);
+  assert.equal(responses.filter(r => r.ok).length, 1); assert.equal(responses.filter(r => r.error?.code === 'conflict').length, 1);
+  const c = f.db().contacts[0];
+  for (const patch of [{ archived: true }, { emailOptOut: true }, { annualParticipation: { '2027': { ...c.annualParticipation!['2027'], review: 'pending' as const } } }]) {
+    assert.equal(previewDirectory({ revision: 1, contacts: [{ ...c, ...patch }] }, 2027)[0].approvedCurrentRecipient, false);
+  }
+  assert.ok(previewDirectory({ revision: 1, contacts: [c, { ...synthetic('duplicate'), contactEmail: c.contactEmail }] }, 2027).every(p => !p.approvedCurrentRecipient));
+  assert.equal(validDirectory({ ...f.db(), contacts: [{ ...c, annualParticipation: { '2026': c.annualParticipation!['2027'] } }] }), false);
+  assert.equal(validDirectory({ ...f.db(), contacts: [{ ...c, annualParticipation: { '2027': { state: 'active' } } }] }), false);
 });

@@ -8,7 +8,7 @@ export interface DirectoryTransport {
     directoryUpdate: (a: { id: string; fields: ContactFields; expectedRevision: number; reviewed: boolean }) => Promise<UpstreamResult<unknown>>;
   };
 }
-async function checkedDirectory(operation: () => Promise<UpstreamResult<unknown>>): Promise<Snapshot> {
+export async function checkedDirectory(operation: () => Promise<UpstreamResult<unknown>>): Promise<Snapshot> {
   let value = await checkedResult(operation);
   if (typeof value === 'string') { try { value = JSON.parse(value); } catch { throw new ApiFailure('missing_data'); } }
   if (!value || typeof value !== 'object' || !('ok' in value)) throw new ApiFailure('missing_data');

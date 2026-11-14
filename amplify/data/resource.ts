@@ -7,6 +7,9 @@ const schema = a.schema({
     .authorization(allow => [allow.groups(['admin'])]).handler(directoryHandler),
   directoryCreateInvitee: a.mutation().arguments({ fields: a.json().required(), expectedRevision: a.integer().required() })
     .returns(a.json()).authorization(allow => [allow.groups(['admin'])]).handler(directoryHandler),
+  directoryParticipation: a.mutation().arguments({ id: a.string().required(), year: a.integer().required(),
+    state: a.string().required(), excluded: a.boolean().required(), reviewed: a.boolean().required(), expectedRevision: a.integer().required() })
+    .returns(a.json()).authorization(allow => [allow.groups(['admin'])]).handler(directoryHandler),
   directoryUpdate: a.mutation().arguments({ id: a.string().required(), fields: a.json().required(),
     expectedRevision: a.integer().required(), reviewed: a.boolean().required() })
     .returns(a.json()).authorization(allow => [allow.groups(['admin'])]).handler(directoryHandler),

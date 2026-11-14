@@ -11,13 +11,14 @@ function fixture() {
   const host = document.createElement('div'); document.body.append(host); const root = createRoot(host);
   let loads = 0; let writes = 0; let fail = false; let selected = 2026; let ready = false; let last: Configure | null = null;
   const directory = { list: async () => ({ revision: 0, contacts: [], preview: [] }), create: async () => { throw Error(); }, update: async () => { throw Error(); } };
+  const participation = { list: directory.list, save: async () => { throw Error('Not part of dashboard fixture'); } };
   const api = { async load(year: number) { loads++; selected = year; if (fail) throw Error('PRIVATE PROVIDER DATA');
     const value = initial(); if (ready) { value.seasons[0].state = 'closed'; value.seasons.push({ year: 2027, state: 'open', revision: 1, deadline: null }); } return { ...value, selected: value.seasons.find(s => s.year === year) ?? null, totals: year === 2026 ? value.totals : year === 2025 ? { initialized: 0, saved: 0, unsaved: 0, legacySaved: 2 } : null }; },
     async configure(args: Configure) { writes++; last = args; if (fail) throw Error('PRIVATE PROVIDER DATA'); return { year: args.year, state: args.state, revision: args.expectedRevision + 1, deadline: args.deadline }; },
     async activate() { writes++; if (fail) throw Error('PRIVATE PROVIDER DATA'); },
   };
   async function render(isAdmin = true, sessionKey = 'admin-a') {
-    await act(async () => root.render(<AnnualAdmin isAdmin={isAdmin} sessionKey={sessionKey} api={api} directory={directory} onMySheet={() => {}} onHistory={() => {}} onSeasonChanged={() => {}} />));
+    await act(async () => root.render(<AnnualAdmin isAdmin={isAdmin} sessionKey={sessionKey} api={api} directory={directory} participation={participation} onMySheet={() => {}} onHistory={() => {}} onSeasonChanged={() => {}} />));
   }
   async function click(text: string) { const b = [...host.querySelectorAll('button')].find(b => b.textContent === text); assert.ok(b, text); await act(async () => b.click()); }
   async function year(value: string) {

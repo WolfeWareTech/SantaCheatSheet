@@ -5,6 +5,7 @@ import { fetchAuthSession, fetchUserAttributes } from "aws-amplify/auth";
 import { AdminSheetsPanel, DataManagementPanel } from "./features/admin";
 import { AnnualAdmin } from "./features/admin/AnnualAdmin";
 import { createSeasonAdminApi } from "./features/admin/seasonAdminApi";
+import { createParticipationApi } from "./features/directory/participationApi";
 import { createDirectoryApi } from "./features/directory";
 import { SeasonSheets } from "./features/sheets/SeasonSheets";
 import { HISTORY_YEAR, type HistoryTarget } from "./features/sheets/seasonal";
@@ -30,6 +31,7 @@ function App() {
   const previousSubject = useRef(subject);
   const [seasonVersion, setSeasonVersion] = useState(0);
   const directoryApi = useMemo(() => subject ? createDirectoryApi() : null, [subject]);
+  const participationApi = useMemo(() => subject ? createParticipationApi() : null, [subject]);
   const annualApi = useMemo(() => subject ? createSeasonAdminApi() : null, [subject]);
   const isAdmin = !!subject && adminSubject === subject;
 
@@ -103,7 +105,7 @@ function App() {
           </header>
 
           {isAdmin && !sheetView && <AnnualAdmin key={subject} isAdmin={isAdmin} sessionKey={subject!}
-            api={annualApi!} directory={directoryApi!} onMySheet={() => selectHistory(null)} onHistory={selectHistory}
+            api={annualApi!} directory={directoryApi!} participation={participationApi!} onMySheet={() => selectHistory(null)} onHistory={selectHistory}
             onSeasonChanged={() => setSeasonVersion(v => v + 1)} />}
           {isAdmin && sheetView && <button className="no-print no-capture" onClick={() => { setSelectedSheet(null); setHistory(null); setSheetView(false); }}>Annual dashboard</button>}
           <div hidden={isAdmin && !sheetView}>{user?.userId && <SeasonSheets

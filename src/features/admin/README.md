@@ -38,8 +38,9 @@ Current unsaved work stays mounted across dashboard/history navigation in the se
 Totals consume complete paginated progress metadata, rejecting malformed/duplicate or
 looping pages. They count available, confirmed-save and unsaved sheets, never claim
 submissions. 2025 uses legacy saved count only (DynamoDB COUNT, no answer return).
-Directory participation is separately labeled 2026-only, active and neither archived
-nor excluded; other years or failed loads say Unknown. Failed refreshes remove stale
+Directory participation is separately selected by year, active and neither archived
+nor excluded; missing historical observations or failed loads say Unknown. Future
+years have independent participation records and never inherit prior approvals. Failed refreshes remove stale
 totals/controls. Refresh after editing the directory. P08's seed remains unapplied,
 excluded/unknown/pending with zero approved recipients.
 
@@ -59,3 +60,22 @@ is discovered from the backend). Retain the dynamic current-year consumer and ba
 active/history/write guards after any activation. Do not roll back to fixed-2026
 backend code, reset CONFIG/ACTIVE, reopen an old active year, delete metadata/rows,
 replace tables/pool or clear saved work as a UI rollback.
+
+## Per-year directory compatibility
+
+The directory v1 document accepts an optional `annualParticipation` map on each contact,
+keyed by 2027..2100. Old documents and the unapplied P08 seed are valid unchanged.
+Each stored observation has state, exclusion, review and timestamp. Missing entries
+mean unknown/excluded/pending, with no mutation on read. Original 2026 fields and
+identity/source provenance remain unchanged by the new admin-only
+`directoryParticipation` mutation. It conditionally writes the same bounded snapshot;
+other years remain intact. Generic contact edits retain the map, global archive and
+channel opt-outs continue to apply, and duplicate/identity-mismatch checks still fail
+closed. Annual totals and previews use the explicitly selected membership year.
+
+The future-year panel manages participation only; it cannot create an account, change
+subjects, send invitations or manufacture delivery. Its saves update dashboard counts.
+2026 membership remains editable in the accepted private directory form. Future-year
+native sharing/personalized delivery remains explicitly pending P13 integration.
+Retain the optional map and its handler validation when rolling back annual UI;
+do not replay an older directory snapshot over newer yearly observations.
