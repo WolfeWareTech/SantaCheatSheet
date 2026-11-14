@@ -23,7 +23,7 @@ function fixture() {
       active = next;
     },
     season: async y => seasons.get(y) ?? null,
-    configure: async (s, r) => { if ((seasons.get(s.year)?.revision ?? 0) !== r) throw new Rejected('conflict'); seasons.set(s.year, s); },
+    configure: async (s, r, expected) => { if (expected.revision !== active.revision || expected.activeYear !== active.activeYear || (seasons.get(s.year)?.revision ?? 0) !== r) throw new Rejected('conflict'); seasons.set(s.year, s); },
     get: async (s, y) => structuredClone(sheets.get(k(s, y)) ?? null),
     create: async (s, season, expected) => { guard(season, expected); if (sheets.has(k(s.ownerSubject, s.year))) throw new Rejected('conflict'); sheets.set(k(s.ownerSubject, s.year), structuredClone(s)); },
     save: async (s, r, season, expected) => { guard(season, expected); if (sheets.get(k(s.ownerSubject, s.year))?.revision !== r) throw new Rejected('conflict'); sheets.set(k(s.ownerSubject, s.year), structuredClone(s)); },
@@ -235,4 +235,20 @@ test('all administrator operations deny ordinary and malformed claims before sto
   assert.equal(reads, 0);
   for (const field of ['seasonState', 'seasonSheet', 'seasonAdmin', 'seasonProgress']) await f.call(field, {}, 'admin', true);
   assert.equal(f.sheets.size, 0);
+});
+
+
+test('configure passes only backend-observed active state into the atomic store boundary', async () => {
+  const f = fixture(); const configure = f.store.configure;
+  let observed: ActiveSeason | undefined;
+  f.store.configure = async (season, revision, active) => {
+    observed = structuredClone(active); await configure(season, revision, active);
+  };
+  assert.equal((await f.call('configureSeason', { state: 'closed', expectedRevision: 0,
+    activeYear: 2099, expectedActiveRevision: 999 }, 'admin', true)).ok, true);
+  assert.deepEqual(observed, { activeYear: 2026, revision: 0 });
+  await f.call('configureSeason', { year: 2027, state: 'open', expectedRevision: 0 }, 'admin', true);
+  await f.call('activateSeason', { year: 2027, expectedRevision: 1, expectedActiveRevision: 0, confirmed: true }, 'admin', true);
+  assert.equal((await f.call('configureSeason', { year: 2027, state: 'closed', expectedRevision: 1 }, 'admin', true)).ok, true);
+  assert.deepEqual(observed, { activeYear: 2027, revision: 1 });
 });

@@ -1,4 +1,4 @@
-import { DynamoDBClient, GetItemCommand, PutItemCommand, QueryCommand, ScanCommand,
+import { DynamoDBClient, GetItemCommand, QueryCommand, ScanCommand,
   TransactWriteItemsCommand, type AttributeValue, type TransactWriteItem } from '@aws-sdk/client-dynamodb';
 import { service, Rejected, progressOf, LAUNCH_YEAR, legacySubject,
   type Event, type Store, type Sheet, type Season, type ActiveSeason } from './service';
@@ -96,15 +96,25 @@ export const store: Store = {
   },
   season: year => document<Season>(seasonKey(year)),
   get: (subject, year) => document<Sheet>(sheetKey(subject, year)),
-  async configure(season, expectedRevision) {
+  async configure(season, expectedRevision, active) {
+    // Serialize year settings with activation as well as other settings edits.
+    // The implicit launch pointer is valid only while CONFIG/ACTIVE is absent.
+    const implicit = active.revision === 0 && active.activeYear === LAUNCH_YEAR;
     try {
-      await client.send(new PutItemCommand({ TableName: table, Item: { ...seasonKey(season.year),
-        state: { S: season.state }, revision: { N: String(season.revision) }, document: { S: JSON.stringify(season) } },
-      ConditionExpression: expectedRevision === 0 ? 'attribute_not_exists(pk)' : 'revision = :revision',
-      ...(expectedRevision === 0 ? {} : { ExpressionAttributeValues: { ':revision': { N: String(expectedRevision) } } }),
-      }));
+      await client.send(new TransactWriteItemsCommand({ TransactItems: [
+        { ConditionCheck: { TableName: table, Key: activeKey(),
+          ConditionExpression: implicit ? 'attribute_not_exists(pk)' : 'revision = :revision AND #document = :active',
+          ...(implicit ? {} : { ExpressionAttributeNames: { '#document': 'document' },
+            ExpressionAttributeValues: { ':revision': { N: String(active.revision) }, ':active': { S: JSON.stringify(active) } } }),
+        } },
+        { Put: { TableName: table, Item: { ...seasonKey(season.year),
+          state: { S: season.state }, revision: { N: String(season.revision) }, document: { S: JSON.stringify(season) } },
+          ConditionExpression: expectedRevision === 0 ? 'attribute_not_exists(pk)' : 'revision = :revision',
+          ...(expectedRevision === 0 ? {} : { ExpressionAttributeValues: { ':revision': { N: String(expectedRevision) } } }),
+        } },
+      ] }));
     } catch (error) {
-      if (error instanceof Error && error.name === 'ConditionalCheckFailedException') throw new Rejected('conflict');
+      if (error instanceof Error && error.name === 'TransactionCanceledException') throw new Rejected('conflict');
       throw error;
     }
   },

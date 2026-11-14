@@ -24,7 +24,7 @@ export interface Store {
   activate(next: ActiveSeason, expected: ActiveSeason, target: Season, previous: Season): Promise<void>;
   legacyCount(): Promise<number>;
   season(year: number): Promise<Season | null>;
-  configure(season: Season, expectedRevision: number): Promise<void>;
+  configure(season: Season, expectedRevision: number, active: ActiveSeason): Promise<void>;
   get(subject: string, year: number): Promise<Sheet | null>;
   create(sheet: Sheet, season: Season, active: ActiveSeason): Promise<void>;
   save(sheet: Sheet, expectedRevision: number, season: Season, active: ActiveSeason): Promise<void>;
@@ -108,7 +108,7 @@ export function service(store: Store, now = () => new Date().toISOString()) {
           !Number.isFinite(Date.parse(deadline)) || new Date(deadline).toISOString() !== deadline.replace(/Z$/, deadline.includes('.') ? 'Z' : '.000Z')))
           throw new Rejected('validation');
         const next: Season = { year, state: a.state as Season['state'], revision: revision + 1, deadline: deadline as string | null };
-        await store.configure(next, revision);
+        await store.configure(next, revision, active);
         return { ok: true, data: next };
       }
       if (event.field === 'activateSeason') {
