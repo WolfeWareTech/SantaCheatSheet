@@ -67,7 +67,7 @@ export interface SeasonalTransport {
   queries: { seasonState: (args: { year: number }) => Promise<UpstreamResult<unknown>>; seasonSheet: (args: { year: number; subject?: string }) => Promise<UpstreamResult<unknown>> };
   mutations: {
     ensureSeasonSheet: (args: { year: number }) => Promise<UpstreamResult<unknown>>;
-    saveSeasonSheet: (args: SaveRequest) => Promise<UpstreamResult<unknown>>;
+    saveSeasonSheet: (args: Omit<SaveRequest, "answers"> & { answers: string }) => Promise<UpstreamResult<unknown>>;
   };
 }
 export function seasonApi(client: SeasonalTransport, subject: string, year = ACTIVE_YEAR) {
@@ -96,7 +96,11 @@ export function seasonApi(client: SeasonalTransport, subject: string, year = ACT
         value.legacy.owner.split("::")[0] !== (target.subject ?? subject)) throw new ApiFailure("missing_data");
       return value.legacy as LegacySheet;
     },
-    save: async (request: SaveRequest) => seasonRecord(await checkedSeason(() => client.mutations.saveSeasonSheet(request)), subject, year),
+    // Custom-operation AWSJSON arguments are JSON strings on the wire. AppSync
+    // parses them into objects before invoking the existing resolver/service.
+    save: async (request: SaveRequest) => seasonRecord(await checkedSeason(() => client.mutations.saveSeasonSheet({
+      ...request, answers: JSON.stringify(request.answers),
+    })), subject, year),
   };
 }
 export function seasonWriter(api: Pick<ReturnType<typeof seasonApi>, "save">, initial: SeasonSheet, requestId: () => string = () => crypto.randomUUID()) {

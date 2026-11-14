@@ -1,7 +1,7 @@
 // Synthetic transport only. No Amplify configuration, credentials or endpoints.
 import { service, Rejected, type Sheet, type Store, type Season, type ActiveSeason, progressOf } from "../../../../amplify/seasonal/service";
 import type { UpstreamResult } from "../../../lib/apiResults";
-import type { SaveRequest } from "../seasonal";
+import type { SeasonalTransport } from "../seasonal";
 
 const legacyFixture = () => [{ id: "legacy-alice", owner: "alice::old-login", year: 2025, displayName: "Historical Alice",
   favoriteCandySnack: ["synthetic history"], additionalNotes: "untouched history", createdAt: "2025-01-01", updatedAt: "2025-12-01" },
@@ -55,7 +55,9 @@ export function generateClient() {
       seasonSheet: (args: { year: number; subject?: string }) => call("seasonSheet", args) },
     mutations: {
       ensureSeasonSheet: (args: { year: number }) => call("ensureSeasonSheet", args),
-      saveSeasonSheet: (args: SaveRequest) => call("saveSeasonSheet", args),
+      // Match AppSync's AWSJSON parsing before the resolver receives arguments.
+      saveSeasonSheet: (args: Parameters<SeasonalTransport['mutations']['saveSeasonSheet']>[0]) =>
+        call("saveSeasonSheet", { ...args, answers: JSON.parse(args.answers) }),
     },
     models: { SantasSheet: {
       list: async () => ({ data: structuredClone(fixture.legacy) }),

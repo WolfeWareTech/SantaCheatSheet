@@ -72,6 +72,21 @@ test("saved same-year work resumes after remount and refreshed authentication; u
   assert.deepEqual(fixture.sheets.get("alice:2026"), before);
   assert.equal(fixture.sheets.size, 1);
 });
+
+test('all questions stay optional: an entirely blank draft saves and reopens without touching history', async () => {
+  const legacy = structuredClone(fixture.legacy);
+  await render();
+  assert.equal(host.querySelectorAll('.sheet-form [required]').length, 0);
+  await click('Save sheet');
+  assert.ok(host.textContent?.includes('Saved!'));
+  const saved = fixture.sheets.get('alice:2026')!;
+  assert.deepEqual(saved.answers, blankAnswers());
+  assert.equal(saved.revision, 1); assert.equal(saved.state, 'draft');
+  await render(<div />); await render();
+  assert.ok(answers().every(input => input.value === ''));
+  assert.deepEqual(fixture.sheets.get('alice:2026'), saved);
+  assert.deepEqual(fixture.legacy, legacy);
+});
 test("history is read-only, uses selected subject/year, and preserves unsaved current draft across navigation/auth refresh", async () => {
   fixture.admin = true;
   const legacy = structuredClone(fixture.legacy);
