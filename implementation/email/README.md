@@ -79,16 +79,21 @@ observations. An unsigned event or a metric count is not a person's receipt.
 
 ## Readiness gates and local checks
 
-Owner sender choice, current verification, reviewed DNS authentication, SES
-production access for ordinary family recipients, deployment/activation and
-authorized delivery checks remain separate gates. While sandboxed the permitted
+Owner approval of the From address and use of its existing verified identity,
+current sender verification, SES production access for ordinary family
+recipients, deployment/activation and authorized route/delivery checks remain
+separate gates. While sandboxed the permitted
 recipient options are: (1) individually verified email identities, (2) SES mailbox
 simulator addresses, or (3) addresses at any verified domain in this project.
 None are authorization to send. Preserve existing DKIM and verified identities.
-The inspected domain has no custom MAIL FROM; current SES onboarding guidance
-requires completing that setup before its production-access workflow. Review
-the chosen domain's existing DNS before proposing exact records; do not invent
-a MAIL FROM label or change an existing DMARC policy.
+SES supports its default MAIL FROM domain. Successful DKIM aligned with the
+chosen From domain can provide the DMARC authentication path; custom MAIL FROM
+and a new DMARC TXT record are not mandatory SES production-access prerequisites
+for this low-volume path. The existing verified domain can request production
+access directly. No new DNS-management approval or MAIL FROM-label choice is
+needed when reusing a suitable verified identity. Custom MAIL FROM or DMARC
+publication is separate optional work, subject to the chosen sender, existing
+policy and recipient requirements; do not change DNS as a setup side effect.
 
 Run offline checks from the repository root:
 
@@ -99,14 +104,18 @@ python -m unittest discover -s implementation/email -p "test_*.py" -v
 These synthetic events include no live sends, simulator sends or family data.
 CloudFormation ValidateTemplate passed for the prepared template. It checks
 template syntax; it is not a successful deployment or IAM/service integration
-test. Local cfn-lint/cfn-guard were unavailable and were not installed. Their
-schema/compliance checks and account-aware predeployment checks remain pending.
-Do not deploy merely because the offline checks pass.
+test. Local cfn-lint/cfn-guard were unavailable and were not installed; that
+tooling fact and the plan-state API's ResourceNotFound response are informational,
+not automatic owner blockers. Appropriate predeployment validation remains
+agent work under a later lease. Do not deploy merely because offline checks pass.
 
 ## Activation and rollback
 
 Do not deploy without a coordinator-amended finite lease and selected sender.
-The review workspace owns P14/01 `CLOUD_LEASE_REQUEST.json` and `OWNER_ACTION.md`.
+The review workspace retains P14/01 `CLOUD_LEASE_REQUEST.json`; P14/02
+`OWNER_ACTION.md` and `RESULT.json` supersede attempt 01's readiness guidance.
+First collect only the approved From address and permission to use its identity;
+then prepare the exact truthful production request for direct owner consent.
 No activation, production-access request or verification message is submitted.
 P15 must obtain a separate lease for role attachment, enabling sends and any
 event ingestion support. A simulator send is a later explicitly authorized test;
@@ -122,4 +131,6 @@ identities, DNS, recovery configuration, identities, sheets and historical data.
 References: [SES event publishing](https://docs.aws.amazon.com/ses/latest/dg/monitor-using-event-publishing.html),
 [SES v2 IAM resources](https://docs.aws.amazon.com/service-authorization/latest/reference/list_sesv2.html),
 [CloudFormation event destination](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-ses-configurationseteventdestination.html),
-[SES production access](https://docs.aws.amazon.com/ses/latest/dg/request-production-access.html).
+[SES production access](https://docs.aws.amazon.com/ses/latest/dg/request-production-access.html),
+[default and custom MAIL FROM](https://docs.aws.amazon.com/ses/latest/dg/mail-from.html),
+[DMARC through aligned DKIM](https://docs.aws.amazon.com/ses/latest/dg/send-email-authentication-dmarc.html).
