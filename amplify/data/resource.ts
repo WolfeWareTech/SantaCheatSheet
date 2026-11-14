@@ -1,7 +1,15 @@
 import { type ClientSchema, a, defineData } from "@aws-amplify/backend";
 
 const seasonalHandler = a.handler.custom({ dataSource: 'seasonalBackend', entry: '../seasonal/resolver.js' });
+const directoryHandler = a.handler.custom({ dataSource: 'directoryBackend', entry: '../directory/resolver.js' });
 const schema = a.schema({
+  directoryList: a.query().returns(a.json())
+    .authorization(allow => [allow.groups(['admin'])]).handler(directoryHandler),
+  directoryCreateInvitee: a.mutation().arguments({ fields: a.json().required(), expectedRevision: a.integer().required() })
+    .returns(a.json()).authorization(allow => [allow.groups(['admin'])]).handler(directoryHandler),
+  directoryUpdate: a.mutation().arguments({ id: a.string().required(), fields: a.json().required(),
+    expectedRevision: a.integer().required(), reviewed: a.boolean().required() })
+    .returns(a.json()).authorization(allow => [allow.groups(['admin'])]).handler(directoryHandler),
   seasonState: a.query().arguments({ year: a.integer().required() }).returns(a.json())
     .authorization(allow => [allow.authenticated()]).handler(seasonalHandler),
   seasonSheet: a.query().arguments({ year: a.integer().required(), subject: a.string() }).returns(a.json())

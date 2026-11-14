@@ -4,6 +4,7 @@ import { data } from "./data/resource";
 import { Stack } from 'aws-cdk-lib';
 import { seasonalResources } from './seasonal/resources';
 import { CfnFunction } from 'aws-cdk-lib/aws-lambda';
+import { directoryResources } from './directory/resources';
 
 const backend = defineBackend({
   auth,
@@ -12,6 +13,8 @@ const backend = defineBackend({
 
 const seasonal = seasonalResources(Stack.of(backend.data.resources.graphqlApi), backend.data.resources.tables['SantasSheet']);
 backend.data.addLambdaDataSource('seasonalBackend', seasonal.handler);
+const directory = directoryResources(Stack.of(backend.data.resources.graphqlApi));
+backend.data.addLambdaDataSource('directoryBackend', directory.handler);
 
 // Preserve the generated model/table and client operation names. A fail-closed
 // pipeline entry rejects even an old client before any generated mutation runs.

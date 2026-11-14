@@ -1,0 +1,11 @@
+.private-directory { max-width: 64rem; margin: 1.5rem auto; padding: 1rem; }
+.private-directory .directory-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap: 1rem; }
+.private-directory article, .private-directory form { padding: 1rem; border: 1px solid #c6d5cc; border-radius: .75rem; background: #fff; color: #16382a; }
+.private-directory form { margin-top: 1rem; }
+.private-directory fieldset { border: 0; padding: 0; display: grid; gap: .8rem; }
+.private-directory label { display: grid; gap: .3rem; }
+.private-directory label:has(input[type=checkbox]) { display: flex; align-items: center; }
+.private-directory input:not([type=checkbox]), .private-directory select { width: 100%; box-sizing: border-box; min-height: 2.75rem; padding: .5rem; font: inherit; }
+.private-directory button { min-height: 2.75rem; padding: .5rem .8rem; margin-top: .5rem; }
+.private-directory input[type=checkbox] { min-width: 1.25rem; min-height: 1.25rem; }
+.private-directory :focus-visible { outline: 3px solid #a16100; outline-offset: 2px; }
