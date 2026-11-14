@@ -32,9 +32,13 @@
 .festive-wordmark > span { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid #efd69a; border-radius: 8px; color: #efd69a; font-family: Georgia, serif; font-size: 19px; letter-spacing: 0; }
 .festive-wordmark small { flex-basis: 100%; margin-left: 37px; color: #c4d2c6; font-size: 8px; letter-spacing: .12em; }
 .festive-eyebrow { margin: 42px 0 14px; color: #efd69a; font-size: 10px; font-weight: 700; letter-spacing: .22em; }
-.festive-intro h1 { margin: 0; color: #fff9ee; font-family: Georgia, "Times New Roman", serif; font-size: clamp(38px, 4vw, 54px); line-height: 1.08; font-weight: 400; letter-spacing: -.045em; }
-.festive-description { margin: 20px 0 0; color: #d2dfd5; font-size: 15px; line-height: 1.65; }
-.festive-postcard { display: block; width: 100%; height: auto; margin: 6px 0 0; }
+.festive-intro h1 { margin: 0; color: #fff9ee; font-family: Georgia, "Times New Roman", serif; font-size: clamp(38px, 4vw, 54px); line-height: 1.08; font-weight: 400; letter-spacing: -.045em; text-wrap: balance; }
+.festive-postcard { display: block; width: 100%; height: auto; margin: 20px 0 12px; }
+.festive-hero-flight { transform-origin: 210px 120px; animation: festive-hero-float 6s ease-in-out infinite; }
+@keyframes festive-hero-float {
+  0%, 100% { transform: translate(-4px, 3px) rotate(1deg); }
+  50% { transform: translate(4px, -6px) rotate(-1deg); }
+}
 .festive-tag { display: flex; gap: 10px; align-items: center; font-size: 13px; letter-spacing: .025em; }
 .festive-tag span { color: #efd69a; font-size: 20px; }
 .festive-entry[data-amplify-authenticator] [data-amplify-router] { align-self: center; min-width: 0; margin: 30px; background: transparent; border: 0; box-shadow: none; }
@@ -64,18 +68,18 @@
   .festive-entry[data-amplify-authenticator] [data-amplify-container] { max-width: 440px; grid-template-columns: minmax(0, 1fr); border-radius: 20px; }
   .festive-intro { padding: 25px 26px 22px; }
   .festive-wordmark small { display: none; }
-  .festive-eyebrow { margin: 26px 0 12px; font-size: 9px; }
-  .festive-intro h1 { font-size: 39px; }
-  .festive-description { margin-top: 12px; max-width: 190px; font-size: 13px; }
-  .festive-postcard { position: absolute; right: 10px; bottom: 18px; width: 145px; }
-  .festive-tag { margin-top: 22px; font-size: 11px; }
+  .festive-eyebrow { margin: 22px 0 12px; font-size: 9px; }
+  .festive-intro h1 { max-width: 330px; font-size: 34px; }
+  .festive-postcard { width: min(100%, 300px); margin: 8px auto 0; }
+  .festive-tag { margin-top: 4px; font-size: 11px; }
   .festive-entry[data-amplify-authenticator] [data-amplify-router] { margin: 12px 26px 22px; }
   .festive-entry[data-amplify-authenticator] [data-amplify-form] { padding-top: 22px; }
   .festive-footer { padding: 16px 20px; line-height: 1.7; font-size: 10px; }
   .festive-celebration { right: 16px; bottom: 16px; }
 }
-@media (max-width: 360px) { .festive-postcard { width: 110px; right: 8px; bottom: 20px; } .festive-intro { padding-inline: 22px; } }
+@media (max-width: 360px) { .festive-intro { padding: 22px; } .festive-intro h1 { font-size: 31px; } }
 @media (prefers-reduced-motion: reduce) {
+  .festive-hero-flight { animation: none; }
   .festive-celebration, .festive-flight svg, .festive-sparkles { animation: none; }
   .festive-flight svg { right: 10px; }
   .festive-sparkles { opacity: .65; }
