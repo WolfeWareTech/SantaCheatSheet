@@ -2,99 +2,55 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Schema } from "../amplify/data/resource";
 import { useAuthenticator } from "@aws-amplify/ui-react";
 import { fetchUserAttributes } from "aws-amplify/auth";
-import { generateClient } from "aws-amplify/data";
 import { AdminSheetsPanel, DataManagementPanel } from "./features/admin";
-import { SheetEditor } from "./features/sheets";
+import { SeasonSheets } from "./features/sheets/SeasonSheets";
+import { HISTORY_YEAR, type HistoryTarget } from "./features/sheets/seasonal";
+import { historyRoute, sheetRoute } from "./features/sheets/seasonRoute";
 import { adminEmails } from "./config/adminConfig";
-import { apiFailure, checkedList } from "./lib/apiResults";
-import { createSheetWriter } from "./features/sheets/persistence";
-
-const client = generateClient<Schema>();
 
 function App() {
-  const [sheets, setSheets] = useState<Array<Schema["SantasSheet"]["type"]>>([]);
   const { user, signOut } = useAuthenticator();
   const [fullName, setFullName] = useState("New friend");
   const sheetCardRef = useRef<HTMLDivElement | null>(null);
   const [selectedSheet, setSelectedSheet] = useState<Schema["SantasSheet"]["type"] | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [reload, setReload] = useState(0);
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
-  const createInFlight = useRef(false);
-  const creator = useRef<ReturnType<typeof createSheetWriter<Schema["SantasSheet"]["type"], { displayName: string; year: number }>> | null>(null);
+  const [history, setHistory] = useState<HistoryTarget | null>(() => historyRoute(window.location.hash));
+
+  function selectHistory(target: HistoryTarget | null) {
+    setSelectedSheet(null);
+    setHistory(target);
+    window.history.pushState(null, "", sheetRoute(target));
+  }
+  useEffect(() => {
+    const navigate = () => { setSelectedSheet(null); setHistory(historyRoute(window.location.hash)); };
+    window.addEventListener("hashchange", navigate);
+    window.addEventListener("popstate", navigate);
+    return () => {
+      window.removeEventListener("hashchange", navigate);
+      window.removeEventListener("popstate", navigate);
+    };
+  }, []);
 
   useEffect(() => {
+    let active = true;
     const loadAttributes = async () => {
       try {
         const attrs = await fetchUserAttributes();
         const first = attrs.given_name ?? "";
         const last = attrs.family_name ?? "";
         const combined = `${first} ${last}`.trim();
-        setFullName(combined || attrs.email || user?.signInDetails?.loginId || "New friend");
+        if (active) setFullName(combined || attrs.email || user?.signInDetails?.loginId || "New friend");
       } catch (err) {
-        setFullName(user?.signInDetails?.loginId || "New friend");
+        if (active) setFullName(user?.signInDetails?.loginId || "New friend");
       }
     };
 
     void loadAttributes();
-  }, [user?.signInDetails?.loginId]);
+    return () => { active = false; };
+  }, [user?.userId, user?.signInDetails?.loginId]);
   const isAdmin = useMemo(() => {
     const loginId = user?.signInDetails?.loginId ?? "";
     return adminEmails.includes(loginId.toLowerCase());
   }, [user?.signInDetails?.loginId]);
-
-  useEffect(() => {
-    let active = true;
-    let inFlight = false;
-    let pending = false;
-    const load = async () => {
-      if (inFlight) { pending = true; return; }
-      inFlight = true;
-      try {
-        const records = await checkedList((nextToken) => client.models.SantasSheet.list({ nextToken, limit: 200 }));
-        if (active) { setSheets(records); setLoadError(null); }
-      } catch (error) {
-        if (active) setLoadError(apiFailure(error).safeMessage);
-      } finally {
-        inFlight = false;
-        if (active) setLoading(false);
-        if (pending && active) { pending = false; void load(); }
-      }
-    };
-    setLoading(true);
-    void load();
-    // Snapshots invalidate the checked list; an unconfirmed initial [] is never
-    // treated as an empty collection or permission to create a sheet.
-    const subscription = client.models.SantasSheet.observeQuery().subscribe({
-      next: () => { void load(); },
-      error: (error) => { if (active) { setLoadError(apiFailure(error).safeMessage); setLoading(false); } },
-    });
-
-    return () => { active = false; subscription.unsubscribe(); };
-  }, [reload]);
-
-  async function createSheet() {
-    if (createInFlight.current || loading || loadError) return;
-    createInFlight.current = true;
-    setCreating(true);
-    setCreateError(null);
-    try {
-      creator.current ??= createSheetWriter({
-        get: (id) => client.models.SantasSheet.get({ id }),
-        create: (payload) => client.models.SantasSheet.create(payload),
-        update: (payload) => client.models.SantasSheet.update(payload),
-      }, crypto.randomUUID());
-      const record = await creator.current({ displayName: fullName, year: new Date().getFullYear() });
-      setSheets((previous) => [record, ...previous.filter((item) => item.id !== record.id)]);
-    } catch (error) {
-      setCreateError(apiFailure(error).safeMessage);
-    } finally {
-      createInFlight.current = false;
-      setCreating(false);
-    }
-  }
 
   return (
     <div className="app-shell">
@@ -113,33 +69,20 @@ function App() {
             </div>
           </header>
 
-          {loading && <p role="status">Loading sheets…</p>}
-          {loadError && <div role="alert"><p>{loadError}</p><button onClick={() => setReload((value) => value + 1)}>Retry loading sheets</button></div>}
-          {isAdmin ? (
-            <SheetEditor
-              sheet={selectedSheet ?? sheets[0] ?? null}
-              fallbackName={fullName}
-              loginId={user?.signInDetails?.loginId ?? ""}
-              readOnly
-            />
-          ) : sheets.length > 0 ? (
-            <SheetEditor
-              sheet={sheets[0]}
-              fallbackName={fullName}
-              loginId={user?.signInDetails?.loginId ?? ""}
-            />
-          ) : !loading && !loadError ? (
-            <div className="sheet-empty">
-              <p>No sheet yet. Create one to start sharing your favorites.</p>
-              {createError && <p role="alert">{createError}</p>}
-              <button onClick={createSheet} disabled={creating}>{creating ? "Creating…" : createError ? "Retry creating my Santa sheet" : "Create my Santa sheet"}</button>
-            </div>
-          ) : null}
+          {user?.userId && <SeasonSheets
+            key={user.userId}
+            subject={user.userId}
+            name={fullName}
+            history={history}
+            onHistory={selectHistory}
+          />}
+
         </div>
+
+        <div className="no-print no-capture"><button onClick={() => window.print()}>Print sheet</button></div>
 
         {isAdmin && selectedSheet && (
           <div className="admin-action-buttons no-print no-capture">
-            <button onClick={() => window.print()}>Print sheet</button>
             <button
               onClick={async () => {
                 if (!sheetCardRef.current) return;
@@ -167,7 +110,13 @@ function App() {
 
         {isAdmin && (
           <>
-            <AdminSheetsPanel onSelect={(sheet) => setSelectedSheet(sheet)} />
+            <AdminSheetsPanel onSelect={(sheet) => {
+              // Selection is explicit by stable subject/year, never list order.
+              if (sheet.year !== HISTORY_YEAR || !sheet.owner) return;
+              selectHistory({ year: HISTORY_YEAR, subject: sheet.owner.split("::")[0], name: sheet.displayName ?? "Participant" });
+              setSelectedSheet(sheet);
+              sheetCardRef.current?.scrollIntoView({ behavior: "smooth" });
+            }} />
             <DataManagementPanel />
           </>
         )}

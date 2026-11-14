@@ -1,189 +1,69 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { generateClient } from "aws-amplify/data";
-import type { Schema } from "../../../amplify/data/resource";
+import { useEffect, useRef, useState } from "react";
+import type { Answers } from "../../../amplify/seasonal/service";
 import { apiFailure } from "../../lib/apiResults";
-import { createSheetWriter } from "./persistence";
-
-const client = generateClient<Schema>();
-
-type SheetRecord = Schema["SantasSheet"]["type"];
-
-type FormState = Record<string, string>;
-
-const defaultFormState: FormState = {
-  displayName: "",
-  year: new Date().getFullYear().toString(),
-  favoriteCandySnack: "",
-  favoriteScents: "",
-  favoriteFastFoodPlaces: "",
-  favoriteRestaurants: "",
-  favoriteStores: "",
-  cellPhoneModel: "",
-  favoriteSaying: "",
-  favoriteSportsTeam: "",
-  favoriteColorsTheme: "",
-  favoriteLogoEmblem: "",
-  anniversaryDate: "",
-  favoritePlaces: "",
-  clothingSizes: "",
-  otherFavorites: "",
-  familyDetails: "",
-  wishlistTopItems: "",
-  additionalNotes: "",
-};
-
-function serializeList(value?: (string | null)[] | null) {
-  return (value ?? []).filter(Boolean).join("\n");
-}
-
-function parseList(value: string) {
-  return value
-    .split("\n")
-    .map((entry) => entry.trim())
-    .filter((entry) => entry.length > 0);
-}
+import { formAnswers, sheetForm, type FormState, type LegacySheet } from "./seasonal";
 
 type SheetEditorProps = {
-  sheet: SheetRecord | null;
+  sheet: (Partial<LegacySheet> & { id: string }) | null;
   fallbackName: string;
   loginId: string;
   readOnly?: boolean;
+  saveAnswers?: (answers: Answers) => Promise<unknown>;
+  visible?: boolean;
 };
 
-export function SheetEditor({
-  sheet,
-  fallbackName,
-  loginId,
-  readOnly = false,
-}: SheetEditorProps) {
-  const [formState, setFormState] = useState<FormState>(defaultFormState);
+export function SheetEditor({ sheet, fallbackName, saveAnswers, readOnly = !saveAnswers, visible = true }: SheetEditorProps) {
+  const [formState, setFormState] = useState<FormState>(() => sheetForm(sheet, fallbackName));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const dirty = useRef(false);
   const savingRef = useRef(false);
-  const loadedId = useRef<string | null | undefined>(undefined);
-  const writer = useRef<ReturnType<typeof createSheetWriter<SheetRecord, Partial<SheetRecord>>> | null>(null);
+  const formRef = useRef<HTMLElement>(null);
+  // A changed person/year mounts a new editor. Same-sheet profile/auth refreshes
+  // cannot replace unsaved answers. History is a separate, read-only instance.
+  useEffect(() => {
+    if (!dirty.current) setFormState(sheetForm(sheet, fallbackName));
+  }, [sheet, fallbackName]);
 
   const autoResize = (el: HTMLTextAreaElement) => {
-    if (window.matchMedia('print').matches) {
-      return;
-    }
+    if (window.matchMedia("print").matches) return;
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
   };
-
   useEffect(() => {
-    const id = sheet?.id ?? null;
-    if (dirty.current) return;
-    if (loadedId.current !== id) {
-      loadedId.current = id;
-      dirty.current = false;
-      writer.current = createSheetWriter<SheetRecord, Partial<SheetRecord>>({
-        get: (recordId) => client.models.SantasSheet.get({ id: recordId }),
-        create: (payload) => client.models.SantasSheet.create(payload),
-        update: (payload) => client.models.SantasSheet.update(payload),
-      }, id ?? crypto.randomUUID(), !!sheet);
-      setMessage(null);
-      setError(null);
-    }
-    if (!sheet) {
-      setFormState({ ...defaultFormState, displayName: fallbackName });
-      return;
-    }
-
-    const isDefaultDisplayName =
-      !sheet.displayName || sheet.displayName === loginId;
-    const effectiveDisplayName = isDefaultDisplayName
-      ? fallbackName
-      : sheet.displayName;
-
-    setFormState({
-      displayName: effectiveDisplayName ?? fallbackName ?? "",
-      year: sheet.year?.toString() ?? new Date().getFullYear().toString(),
-      favoriteCandySnack: serializeList(sheet.favoriteCandySnack),
-      favoriteScents: serializeList(sheet.favoriteScents),
-      favoriteFastFoodPlaces: serializeList(sheet.favoriteFastFoodPlaces),
-      favoriteRestaurants: serializeList(sheet.favoriteRestaurants),
-      favoriteStores: serializeList(sheet.favoriteStores),
-      cellPhoneModel: sheet.cellPhoneModel ?? "",
-      favoriteSaying: sheet.favoriteSaying ?? "",
-      favoriteSportsTeam: sheet.favoriteSportsTeam ?? "",
-      favoriteColorsTheme: sheet.favoriteColorsTheme ?? "",
-      favoriteLogoEmblem: sheet.favoriteLogoEmblem ?? "",
-      anniversaryDate: sheet.anniversaryDate ?? "",
-      favoritePlaces: serializeList(sheet.favoritePlaces),
-      clothingSizes: sheet.clothingSizes ?? "",
-      otherFavorites: sheet.otherFavorites ?? "",
-      familyDetails: sheet.familyDetails ?? "",
-      wishlistTopItems: serializeList(sheet.wishlistTopItems),
-      additionalNotes: sheet.additionalNotes ?? "",
-    });
-  }, [sheet, fallbackName, loginId]);
-
-  useEffect(() => {
-    const textareas = document.querySelectorAll<HTMLTextAreaElement>(".sheet-form__textarea");
-    textareas.forEach((ta) => autoResize(ta));
-  }, [formState]);
-
-  const yearValue = formState.year || new Date().getFullYear().toString();
-  const parsedYear = useMemo(() => {
-    const numeric = Number.parseInt(yearValue, 10);
-    return Number.isNaN(numeric) ? new Date().getFullYear() : numeric;
-  }, [yearValue]);
+    if (visible) formRef.current?.querySelectorAll<HTMLTextAreaElement>(".sheet-form__textarea").forEach(autoResize);
+  }, [formState, visible]);
 
   async function saveSheet() {
-    if (readOnly || savingRef.current) {
-      return;
-    }
+    if (readOnly || savingRef.current || !saveAnswers) return;
     savingRef.current = true;
     setSaving(true);
     setError(null);
     setMessage(null);
-
     try {
-      const payload: Partial<SheetRecord> = {
-        year: parsedYear,
-        displayName: formState.displayName || fallbackName,
-        favoriteCandySnack: parseList(formState.favoriteCandySnack),
-        favoriteScents: parseList(formState.favoriteScents),
-        favoriteFastFoodPlaces: parseList(formState.favoriteFastFoodPlaces),
-        favoriteRestaurants: parseList(formState.favoriteRestaurants),
-        favoriteStores: parseList(formState.favoriteStores),
-        cellPhoneModel: formState.cellPhoneModel,
-        favoriteSaying: formState.favoriteSaying,
-        favoriteSportsTeam: formState.favoriteSportsTeam,
-        favoriteColorsTheme: formState.favoriteColorsTheme,
-        favoriteLogoEmblem: formState.favoriteLogoEmblem,
-        anniversaryDate: formState.anniversaryDate,
-        favoritePlaces: parseList(formState.favoritePlaces),
-        clothingSizes: formState.clothingSizes,
-        otherFavorites: formState.otherFavorites,
-        familyDetails: formState.familyDetails,
-        wishlistTopItems: parseList(formState.wishlistTopItems),
-        additionalNotes: formState.additionalNotes,
-      };
-
-      await writer.current!(payload);
+      await saveAnswers(formAnswers(formState));
       dirty.current = false;
       setMessage("Saved!");
     } catch (err) {
-      setError(`${apiFailure(err).safeMessage} Your edits are still here.`);
+      const failure = apiFailure(err);
+      setError(failure.code === "conflict"
+        ? "Another save conflicts with this draft. Your edits are still here. Open your 2026 sheet in a new tab to review the saved version before continuing."
+        : `${failure.safeMessage} Your edits are still here.`);
     } finally {
       savingRef.current = false;
       setSaving(false);
     }
   }
-
   function updateField(name: keyof FormState, value: string) {
     if (readOnly || savingRef.current) return;
     dirty.current = true;
     setMessage(null);
-    setFormState((prev) => ({ ...prev, [name]: value }));
+    setFormState(prev => ({ ...prev, [name]: value }));
   }
 
   return (
-    <section className="sheet-form">
+    <section className="sheet-form" ref={formRef}>
       <fieldset className="sheet-form__grid" disabled={saving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
         {/* Name field */}
         <div className="sheet-form__question">
@@ -193,7 +73,7 @@ export function SheetEditor({
             className="sheet-form__answer-line"
             value={formState.displayName ?? ""}
             onChange={(event) => updateField("displayName", event.target.value)}
-            disabled={readOnly}
+            readOnly
           />
         </div>
 
@@ -283,6 +163,7 @@ export function SheetEditor({
           <input
             type="text"
             className="sheet-form__answer-line"
+            readOnly={readOnly}
             value={formState.cellPhoneModel ?? ""}
             onChange={(event) => updateField("cellPhoneModel", event.target.value)}
           />
@@ -311,7 +192,7 @@ export function SheetEditor({
             className="sheet-form__answer-line"
             value={formState.favoriteSportsTeam ?? ""}
             onChange={(event) => updateField("favoriteSportsTeam", event.target.value)}
-            disabled={readOnly}
+            readOnly={readOnly}
           />
         </div>
 
@@ -323,7 +204,7 @@ export function SheetEditor({
             className="sheet-form__answer-line"
             value={formState.favoriteColorsTheme ?? ""}
             onChange={(event) => updateField("favoriteColorsTheme", event.target.value)}
-            disabled={readOnly}
+            readOnly={readOnly}
           />
         </div>
 
@@ -335,7 +216,7 @@ export function SheetEditor({
             className="sheet-form__answer-line"
             value={formState.favoriteLogoEmblem ?? ""}
             onChange={(event) => updateField("favoriteLogoEmblem", event.target.value)}
-            disabled={readOnly}
+            readOnly={readOnly}
           />
         </div>
 
@@ -347,7 +228,7 @@ export function SheetEditor({
             className="sheet-form__answer-line"
             value={formState.anniversaryDate ?? ""}
             onChange={(event) => updateField("anniversaryDate", event.target.value)}
-            disabled={readOnly}
+            readOnly={readOnly}
           />
         </div>
 
@@ -373,6 +254,7 @@ export function SheetEditor({
           <input
             type="text"
             className="sheet-form__answer-line"
+            readOnly={readOnly}
             value={formState.clothingSizes ?? ""}
             onChange={(event) => updateField("clothingSizes", event.target.value)}
           />
