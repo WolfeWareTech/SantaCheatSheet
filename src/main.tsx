@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { Authenticator } from "@aws-amplify/ui-react";
+import { FestiveAuthenticator } from "./features/auth/festive/FestiveAuthenticator";
 import App from "./App.tsx";
 import "@aws-amplify/ui-react/styles.css";
 import "./App.css";
@@ -28,8 +28,8 @@ const formFields = {
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <Authenticator formFields={formFields}>
+    <FestiveAuthenticator formFields={formFields}>
       <App />
-    </Authenticator>
+    </FestiveAuthenticator>
   </React.StrictMode>
 );
