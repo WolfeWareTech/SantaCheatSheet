@@ -1,0 +1,11 @@
+.sheet-browser, .maintenance-panel, .admin-sheet-view { min-width: 0; overflow-wrap: anywhere; }
+.sheet-browser__filters { display: flex; flex-wrap: wrap; align-items: end; gap: .75rem; }
+.sheet-browser label, .maintenance-panel label { display: grid; gap: .35rem; min-width: 0; }
+.sheet-browser input, .sheet-browser select, .maintenance-panel textarea { box-sizing: border-box; width: 100%; max-width: 100%; padding: .6rem; font: inherit; }
+.sheet-browser__list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap: .75rem; padding: 0; list-style: none; }
+.sheet-browser__list li { min-width: 0; border: 1px solid #c8b6a6; border-radius: .6rem; padding: .85rem; background: #fffaf0; }
+.sheet-browser__list h4 { margin: 0; }
+.sheet-browser button, .sheet-browser input, .sheet-browser select, .maintenance-panel button { min-height: 44px; }
+.sheet-browser :focus-visible, .maintenance-panel :focus-visible { outline: 3px solid #80331f; outline-offset: 3px; }
+.maintenance-panel textarea { min-height: 10rem; }
+@media (max-width: 480px) { .sheet-browser__filters > * { width: 100%; } }

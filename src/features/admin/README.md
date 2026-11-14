@@ -1,5 +1,49 @@
 # P09 annual administration
 
+## P10 browsing and maintenance
+
+The annual home's **View year** is the browser's year filter. It never activates a
+season. Search, explicit sheet-status filters, name/date sorting and responsive
+semantic cards browse that selected year. Save dates use readable UTC text and
+machine-readable `time` elements. Empty storage, no filter matches, loading and
+failed/incomplete reads are different states; failed refreshes discard stale rows.
+Complete pagination rejects looping tokens, duplicate identities/years and malformed
+progress. Only metadata is retained in list state. Names are resolved through unique
+verified directory subject mappings, with a stable identifier fallback when unknown.
+
+Legacy rows always say **Legacy saved**, never submitted. Other people's drafts
+have progress only and no View action; their answers remain server-protected.
+Submitted sheets and legacy history retain explicit subject/year routes. My current
+draft uses My sheet. Selection keeps name/year visible; returning to the dashboard
+restores its last manually viewed year for that session/subject. Logout or subject
+changes clear private UI state. Existing active/configuration revision and deadline
+guards, annual participation maps, owner drafts and historical API denials remain.
+
+`#/admin/maintenance` is a separate route, available only after the existing
+subject-bound admin claim check. Unauthorized deep links show a denial, with no
+maintenance or admin requests. The old `DataManagementPanel` entry now aliases this
+admin-gated, local-only panel. Migration/deployment/deletion advice and the live
+legacy importer are absent from application navigation. The old `importRecords.ts`
+helper is unreachable from production UI; it remains only for historical P02 fixtures.
+
+Dry run accepts synthetic legacy-export arrays (or `{items: [...]}`), at most 500
+records/2 MB of text. It validates field types, original IDs/owners/years and ordered
+UTC timestamps; rejects unknown schema and duplicate IDs/owner-years; and reports
+every row plus separate valid/invalid totals. It does not generate replacement IDs,
+strip original timestamps, show answer values, check live conflicts, or apply writes.
+**Apply remains disabled.** There is no supported backend import action. Any future
+actual maintenance action must have backend admin enforcement and separately reviewed
+preservation, conflict and per-record outcomes. Local validity is not import success.
+
+P10 checks: `browsing.test.tsx`, existing annual and sheet suites, and the coordinator
+result directory's local headless Edge harness/screenshots. These use synthetic data;
+mobile viewport emulation is distinct from a physical phone or deployed API check.
+P02's old importer UI/retry expectations are superseded by these disabled-apply tests.
+
+For P10 UI rollback, remove browsing/maintenance mounts or route admins to My sheet.
+Do not restore the old live import UI or deployment/deletion instructions. Preserve
+all backend guards and saved data, including the P09 active-state race repair.
+
 `AnnualAdmin` is mounted only after App verifies access-token `sub` against the current
 signed-in subject and finds the existing `admin` group. The directory API and annual API
 are memoized per subject. Keyed panels, role gates and cancelled read effects clear

@@ -9,17 +9,20 @@ import { NativeSeasonShare } from '../invitations/native-share/NativeSeasonShare
 import type { HistoryTarget } from '../sheets/seasonal';
 import type { seasonAdminApi, Dashboard, Configure, Activate } from './seasonAdminApi';
 import './annualAdmin.css';
+import { AdminSheetsPanel } from './AdminSheetsPanel';
+import type { browseApi } from './browseApi';
 
 type Props = { isAdmin: boolean; sessionKey: string; api: ReturnType<typeof seasonAdminApi>; directory: ReturnType<typeof directoryApi>;
-  participation: ReturnType<typeof participationApi>;
+  participation: ReturnType<typeof participationApi>; browsing?: ReturnType<typeof browseApi>;
+  initialYear?: number; onViewYear?: (year: number) => void;
   onMySheet: () => void; onHistory: (target: HistoryTarget) => void; onSeasonChanged: () => void };
 export function AnnualAdmin(props: Props) {
   if (!props.isAdmin) return null;
   return <AdminHome key={props.sessionKey} {...props} />;
 }
-function AdminHome({ api, directory, participation, sessionKey, onMySheet, onHistory, onSeasonChanged }: Props) {
-  const [year, setYear] = useState(2026);
-  const [yearInput, setYearInput] = useState('2026');
+function AdminHome({ api, directory, participation, browsing, initialYear, onViewYear, sessionKey, onMySheet, onHistory, onSeasonChanged }: Props) {
+  const [year, setYear] = useState(initialYear ?? 2026);
+  const [yearInput, setYearInput] = useState(String(initialYear ?? 2026));
   const [data, setData] = useState<Dashboard | null>(null);
   const [people, setPeople] = useState<Snapshot | null>(null);
   const [directoryError, setDirectoryError] = useState(false);
@@ -29,7 +32,7 @@ function AdminHome({ api, directory, participation, sessionKey, onMySheet, onHis
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const pendingWrite = useRef(false);
-  const initial = useRef(true);
+  const initial = useRef(initialYear === undefined);
   const [deadline, setDeadline] = useState('');
   const [pending, setPending] = useState<{ kind: 'configure'; args: Configure } | { kind: 'activate'; args: Activate } | null>(null);
   useEffect(() => {
@@ -54,6 +57,7 @@ function AdminHome({ api, directory, participation, sessionKey, onMySheet, onHis
   const selected = data?.selected;
   const current = data?.seasons.find(s => s.year === data.activeYear);
   function selectYear(next: number) {
+    onViewYear?.(next);
     setData(null); setLoading(true); setNotice(''); setPending(null); setYearInput(String(next));
     if (next === year) setReload(v => v + 1); else setYear(next);
   }
@@ -119,6 +123,8 @@ function AdminHome({ api, directory, participation, sessionKey, onMySheet, onHis
         <p>{pending.kind === 'activate' ? `Everyone will open ${year} after sign-in. Previous years become administrator-only history. New answers start blank.` : `Season will be ${pending.args.state}. Deadline: ${pending.args.deadline ?? 'none'}. Closing or an elapsed deadline prevents edits.`} Saved answers are retained.</p>
         <button disabled={busy} onClick={() => { void confirm(); }}>Confirm season change</button><button disabled={busy} onClick={() => setPending(null)}>Cancel</button>
       </div>}
+      {selected && browsing && <AdminSheetsPanel isAdmin sessionKey={sessionKey} year={year} activeYear={data.activeYear}
+        api={browsing} people={people} onHistory={onHistory} onMySheet={onMySheet} />}
       {year >= 2027 && <AnnualParticipationPanel year={year} api={participation} isAdmin sessionKey={sessionKey} onSaved={setPeople} />}
       {data.activeYear > 2026 && <p>Invitation and native share integration for future seasons is pending. This dashboard does not send messages.</p>}
       {data.activeYear === 2026 && <NativeSeasonShare />}
