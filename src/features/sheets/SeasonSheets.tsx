@@ -9,7 +9,7 @@ import { ACTIVE_YEAR, HISTORY_YEAR, editorSheet, seasonApi, seasonWriter, type H
 const client = generateClient<Schema>();
 type Api = ReturnType<typeof seasonApi>;
 
-function CurrentSheet({ api, name, visible }: { api: Api; name: string; visible: boolean }) {
+function CurrentSheet({ api, name, visible, isAdmin }: { api: Api; name: string; visible: boolean; isAdmin: boolean }) {
   const [sheet, setSheet] = useState<SeasonSheet | null>(null);
   const [writer, setWriter] = useState<ReturnType<typeof seasonWriter> | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +31,7 @@ function CurrentSheet({ api, name, visible }: { api: Api; name: string; visible:
   return <>
     <h2>Your {ACTIVE_YEAR} Santa sheet</h2>
     <p>Account: {name}</p>
-    <NativeSeasonShare />
+    {isAdmin && <NativeSeasonShare />}
     {loading && <p role="status">Opening your {ACTIVE_YEAR} sheet…</p>}
     {error && <div role="alert"><p>{error}</p><button onClick={() => setRetry(value => value + 1)}>Retry opening your {ACTIVE_YEAR} sheet</button></div>}
     {view && writer && <SheetEditor sheet={view} fallbackName={name} loginId="" visible={visible} saveAnswers={async answers => {
@@ -64,16 +64,18 @@ function HistorySheet({ api, target, name }: { api: Api; target: HistoryTarget; 
       : <p>No saved {target.year} sheet for this participant.</p>)}
   </>;
 }
-export function SeasonSheets({ subject, name, history, onHistory }: {
-  subject: string; name: string; history: HistoryTarget | null; onHistory: (target: HistoryTarget | null) => void;
+export function SeasonSheets({ subject, name, history: requestedHistory, onHistory, isAdmin = false }: {
+  subject: string; name: string; history: HistoryTarget | null; onHistory: (target: HistoryTarget | null) => void; isAdmin?: boolean;
 }) {
   const api = useMemo(() => seasonApi(client, subject), [subject]);
+  // Guard supplied targets and direct hash routes while claims load/fail too.
+  const history = isAdmin ? requestedHistory : null;
   return <>
     <nav className="no-print no-capture" aria-label="Santa sheet seasons">
       <button onClick={() => onHistory(null)} aria-pressed={!history}>Your {ACTIVE_YEAR} sheet</button>{" "}
-      <button onClick={() => onHistory({ year: HISTORY_YEAR })} aria-pressed={!!history && !history.subject}>{HISTORY_YEAR} history (read-only)</button>
+      {isAdmin && <button onClick={() => onHistory({ year: HISTORY_YEAR })} aria-pressed={!!history && !history.subject}>{HISTORY_YEAR} history (read-only)</button>}
     </nav>
-    <div hidden={!!history}><CurrentSheet api={api} name={name} visible={!history} /></div>
+    <div hidden={!!history}><CurrentSheet api={api} name={name} visible={!history} isAdmin={isAdmin} /></div>
     {history && <HistorySheet key={`${history.subject ?? subject}:${history.year}`} api={api} target={history} name={name} />}
   </>;
 }

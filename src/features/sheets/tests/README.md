@@ -24,6 +24,15 @@ the accepted P04 backend. No deployment or physical-device verification is claim
 
 The route defaults explicitly to `#/sheets/2026`; history is
 `#/sheets/2025[/<encoded stable subject>]`. Server authorization remains decisive.
+R01 (owner decision, November 13, 2026): history controls and these direct history
+routes require the existing Cognito `admin` group, bound to the authenticated
+subject. Ordinary owners stay on their 2026 sheet without requesting history.
+Historical owner reads are denied server-side too. Admin own/other history stays
+read-only. Tests cover the retired email allowlist granting no privileges,
+missing/malformed/mismatched group claims, and forged own/other historical routes.
+The owner's follow-up also restricts Share and Copy link to admins. Ordinary
+users have neither sharing control, including through forged historical routes;
+admin-claim changes never remount or clear the current unsaved draft.
 Display names are separate profile presentation, never saved in seasonal answers.
 Uncertain writes reuse the original request ID, revision and payload before later
 edits are saved. Stale-tab conflicts retain the local edits for manual review.

@@ -39,7 +39,7 @@ export interface ResponseProgress {
   revisedAt: IsoTime | null;
   revision: number;
 }
-/** Only owner, or admin for legacy/submitted responses, may obtain answers. */
+/** Previous-year answers: admin only. Current year: owner, or admin if submitted. */
 export interface AnswerFields {
   favoriteCandySnack: string[];
   favoriteScents: string[];

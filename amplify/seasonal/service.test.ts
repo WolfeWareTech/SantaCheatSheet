@@ -90,12 +90,43 @@ test('closed season rejects create and save; atomic store guard rejects concurre
 });
 test('legacy lookup is deterministic, immutable and never fabricates submittedAt; ambiguity fails', async () => {
   const f = fixture(); const before = structuredClone(f.legacy);
-  const legacy = await f.call('seasonSheet', { year: 2025 });
+  const legacy = await f.call('seasonSheet', { year: 2025 }, 'alice', true);
   assert.equal(legacy.ok, true); assert.equal((legacy.data as { state: string }).state, 'legacy_saved');
   assert.equal((legacy.data as { submittedAt: unknown }).submittedAt, null);
   assert.deepEqual(f.legacy, before);
   f.legacy.push({ ...f.legacy[0], id: 'ambiguous' });
-  assert.equal((await f.call('seasonSheet', { year: 2025 })).error?.code, 'conflict');
+  assert.equal((await f.call('seasonSheet', { year: 2025 }, 'alice', true)).error?.code, 'conflict');
+});
+
+test('history requires trusted admin claims even for its owner; denial never reads storage', async () => {
+  const f = fixture(); let reads = 0;
+  f.store.legacy = async () => { reads++; return f.legacy; };
+  f.store.season = async () => { reads++; return null; };
+  for (const args of [{ year: 2025 }, { year: 2025, subject: 'alice' },
+    { year: 2025, subject: 'bob' }, { year: 2025, groups: ['admin'] }]) {
+    assert.equal((await f.call('seasonSheet', args)).error?.code, 'forbidden');
+  }
+  for (const groups of [undefined, 'admin', ['Admin'], ['not-admin']]) {
+    assert.equal((await f.run({ field: 'seasonSheet', arguments: { year: 2025 },
+      identity: { sub: 'alice', claims: { sub: 'alice', 'cognito:groups': groups } } })).error?.code, 'forbidden');
+  }
+  assert.equal((await f.run({ field: 'seasonSheet', arguments: { year: 2025 },
+    identity: { sub: 'alice', claims: { sub: 'bob', 'cognito:groups': ['admin'] } } })).error?.code, 'forbidden');
+  assert.equal(reads, 0);
+});
+
+test('admin reads own and other history without changing originals; historical writes remain denied', async () => {
+  const f = fixture(); const before = structuredClone(f.legacy);
+  for (const [sub, args] of [['alice', { year: 2025 }], ['admin', { year: 2025, subject: 'alice' }]] as const) {
+    const result = await f.call('seasonSheet', args, sub, true);
+    assert.equal(result.ok, true);
+    assert.deepEqual((result.data as { legacy: unknown }).legacy, before[0]);
+  }
+  for (const admin of [false, true]) for (const field of ['ensureSeasonSheet', 'saveSeasonSheet',
+    'createSantasSheet', 'updateSantasSheet', 'deleteSantasSheet']) {
+    assert.equal((await f.call(field, { year: 2025 }, 'alice', admin)).ok, false);
+  }
+  assert.deepEqual(f.legacy, before); assert.equal(f.sheets.size, 0);
 });
 test('SDK failures return sanitized error without values', async () => {
   const f = fixture(); f.store.get = async () => { throw new Error('private-answer-or-token'); };

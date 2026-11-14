@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Schema } from "../amplify/data/resource";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { fetchUserAttributes } from "aws-amplify/auth";
+import { fetchAuthSession, fetchUserAttributes } from "aws-amplify/auth";
 import { AdminSheetsPanel, DataManagementPanel } from "./features/admin";
 import { SeasonSheets } from "./features/sheets/SeasonSheets";
 import { HISTORY_YEAR, type HistoryTarget } from "./features/sheets/seasonal";
 import { historyRoute, sheetRoute } from "./features/sheets/seasonRoute";
-import { adminEmails } from "./config/adminConfig";
 
 function App() {
   const { user, signOut } = useAuthenticator();
@@ -14,8 +13,12 @@ function App() {
   const sheetCardRef = useRef<HTMLDivElement | null>(null);
   const [selectedSheet, setSelectedSheet] = useState<Schema["SantasSheet"]["type"] | null>(null);
   const [history, setHistory] = useState<HistoryTarget | null>(() => historyRoute(window.location.hash));
+  const [adminSubject, setAdminSubject] = useState<string | null>(null);
+  const subject = user?.userId;
+  const isAdmin = !!subject && adminSubject === subject;
 
   function selectHistory(target: HistoryTarget | null) {
+    if (target && !isAdmin) return;
     setSelectedSheet(null);
     setHistory(target);
     window.history.pushState(null, "", sheetRoute(target));
@@ -47,10 +50,18 @@ function App() {
     void loadAttributes();
     return () => { active = false; };
   }, [user?.userId, user?.signInDetails?.loginId]);
-  const isAdmin = useMemo(() => {
-    const loginId = user?.signInDetails?.loginId ?? "";
-    return adminEmails.includes(loginId.toLowerCase());
-  }, [user?.signInDetails?.loginId]);
+  useEffect(() => {
+    let active = true;
+    setAdminSubject(null);
+    void fetchAuthSession().then(session => {
+      const claims = session.tokens?.accessToken.payload;
+      const groups = claims?.["cognito:groups"];
+      if (active && subject && claims?.sub === subject && Array.isArray(groups) && groups.includes("admin")) {
+        setAdminSubject(subject);
+      }
+    }).catch(() => { /* No history/admin UI without a verified session claim. */ });
+    return () => { active = false; };
+  }, [subject]);
 
   return (
     <div className="app-shell">
@@ -73,6 +84,7 @@ function App() {
             key={user.userId}
             subject={user.userId}
             name={fullName}
+            isAdmin={isAdmin}
             history={history}
             onHistory={selectHistory}
           />}

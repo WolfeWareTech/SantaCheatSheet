@@ -9,11 +9,13 @@ const legacyFixture = () => [{ id: "legacy-alice", owner: "alice::old-login", ye
     createdAt: "2025-01-02", updatedAt: "2025-12-02" }];
 export const fixture = {
   subject: "alice", admin: false, loginId: "synthetic@example.invalid", expired: false,
+  sessionClaims: null as Record<string, unknown> | null,
   sheets: new Map<string, Sheet>(), legacy: legacyFixture(), calls: [] as { field: string; args: Record<string, unknown> }[],
   intercept: null as null | ((field: string, result: UpstreamResult<unknown>) => Promise<UpstreamResult<unknown>>),
 };
 export function resetFixture() {
   fixture.subject = "alice"; fixture.admin = false; fixture.loginId = "synthetic@example.invalid"; fixture.expired = false;
+  fixture.sessionClaims = null;
   fixture.sheets.clear(); fixture.legacy = legacyFixture(); fixture.calls = []; fixture.intercept = null;
 }
 const store: Store = {
@@ -58,3 +60,7 @@ export function useAuthenticator() {
   return { user: { userId: fixture.subject, signInDetails: { loginId: fixture.loginId } }, signOut: () => {} };
 }
 export async function fetchUserAttributes() { return { given_name: "Synthetic", family_name: "Profile" }; }
+export async function fetchAuthSession() {
+  if (fixture.expired) throw new Error("Session expired");
+  return { tokens: { accessToken: { payload: fixture.sessionClaims ?? { sub: fixture.subject, "cognito:groups": fixture.admin ? ["admin"] : [] } } } };
+}

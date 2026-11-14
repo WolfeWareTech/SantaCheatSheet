@@ -123,8 +123,9 @@ test("pending native panel prevents overlapping actions and releases buttons aft
   assert.ok(!button("Share 2026 link").disabled);
 });
 test("share, cancel, clipboard fallback and history navigation retain the mounted unsaved draft and all legacy records", async () => {
+  fixture.admin = true;
   const legacy = structuredClone(fixture.legacy);
-  await render(<SeasonSheets subject="alice" name="Alice" history={null} onHistory={() => {}} />);
+  await render(<SeasonSheets subject="alice" name="Alice" isAdmin={true} history={null} onHistory={() => {}} />);
   const textarea = host.querySelector<HTMLTextAreaElement>(".sheet-form textarea")!;
   await act(async () => {
     Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(textarea, "PRIVATE_UNSAVED_ANSWER");
@@ -144,9 +145,9 @@ test("share, cancel, clipboard fallback and history navigation retain the mounte
   assert.equal(window.location.href, route);
   assert.deepEqual(fixture.sheets, savedBefore);
   assert.deepEqual(fixture.calls, callsBefore, "sharing never invokes data/auth mutations");
-  await render(<SeasonSheets subject="alice" name="Alice" history={{ year: 2025 }} onHistory={() => {}} />);
+  await render(<SeasonSheets subject="alice" name="Alice" isAdmin={true} history={{ year: 2025 }} onHistory={() => {}} />);
   assert.ok(host.querySelector(".native-season-share")?.closest("[hidden]"));
-  await render(<SeasonSheets subject="alice" name="Alice" history={null} onHistory={() => {}} />);
+  await render(<SeasonSheets subject="alice" name="Alice" isAdmin={true} history={null} onHistory={() => {}} />);
   assert.equal(host.querySelector(".sheet-form textarea"), textarea);
   assert.equal(textarea.value, "PRIVATE_UNSAVED_ANSWER");
   assert.deepEqual(fixture.legacy, legacy);

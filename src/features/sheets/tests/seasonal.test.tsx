@@ -8,6 +8,7 @@ import { SeasonSheets } from "../SeasonSheets";
 import { ACTIVE_YEAR, checkedSeason, editorSheet, formAnswers, seasonApi, seasonWriter, sheetForm, type HistoryTarget } from "../seasonal";
 import { fixture, generateClient, resetFixture } from "./mockSeasonClient";
 import { historyRoute, sheetRoute } from "../seasonRoute";
+import { adminEmails } from "../../../config/adminConfig";
 
 let host: HTMLDivElement;
 let root: Root;
@@ -49,6 +50,7 @@ test("returning 2025 participant gets every 2026 answer blank; explicit year ign
 });
 test("first-time participant creates one blank record and history reports absence without creating", async () => {
   fixture.subject = "new-participant";
+  fixture.admin = true;
   await render();
   assert.ok(answers().every(input => input.value === ""));
   await click("2025 history (read-only)");
@@ -65,6 +67,7 @@ test("saved same-year work resumes after remount and refreshed authentication; u
   assert.equal(fixture.sheets.size, 1);
 });
 test("history is read-only, uses selected subject/year, and preserves unsaved current draft across navigation/auth refresh", async () => {
+  fixture.admin = true;
   const legacy = structuredClone(fixture.legacy);
   await render(); await edit("unsaved 2026 draft");
   await click("2025 history (read-only)");
@@ -137,13 +140,70 @@ test("simultaneous tabs share one ensure result, reject stale save and never ove
 test("selected admin history stays bound to explicit person/year; regular participant cannot read another owner", async () => {
   fixture.admin = true;
   let target: HistoryTarget | null = { year: 2025, subject: "bob", name: "Selected Bob" };
-  const view = () => <SeasonSheets subject="alice" name="Alice" history={target} onHistory={next => { target = next; root.render(view()); }} />;
+  const view = () => <SeasonSheets subject="alice" name="Alice" isAdmin={fixture.admin} history={target} onHistory={next => { target = next; root.render(view()); }} />;
   await render(view());
   assert.ok(host.textContent?.includes("Historical Bob — 2025 history"));
   assert.equal(answers().at(-1)?.value, "bob history");
   assert.ok(fixture.calls.some(call => call.field === "seasonSheet" && call.args.subject === "bob" && call.args.year === 2025));
   fixture.admin = false;
   await assert.rejects(seasonApi(generateClient(), "alice").history({ year: 2025, subject: "bob" }), /permission/);
+});
+
+test("ordinary owners have no history controls and forged own/other routes never request history", async () => {
+  fixture.loginId = adminEmails[0]; // An old UI allowlist grants no history privileges.
+  for (const hash of ['#/sheets/2025', '#/sheets/2025/alice', '#/sheets/2025/bob']) {
+    await render(<div />);
+    window.history.replaceState(null, "", hash);
+    fixture.calls = [];
+    await render();
+    assert.equal(answers().length, 17);
+    assert.ok(!host.textContent?.includes("2025 history"));
+    assert.ok(!host.querySelector('.admin-panel'));
+    assert.ok(!host.querySelector('.native-season-share'));
+    assert.ok(!host.textContent?.includes('Copy link'));
+    assert.ok(!host.textContent?.includes('Share 2026 link'));
+    assert.ok(fixture.calls.every(call => call.args.year === 2026));
+    await assert.rejects(seasonApi(generateClient(), "alice").history({ year: 2025 }), /permission/);
+  }
+});
+
+test("history component guards forged targets without admin claims", async () => {
+  await render(<SeasonSheets subject="alice" name="Alice" isAdmin={false} history={{ year: 2025, subject: 'bob' }} onHistory={() => { throw new Error('Unexpected navigation'); }} />);
+  assert.equal(answers().length, 17);
+  assert.ok(fixture.calls.every(call => call.args.year === 2026));
+  assert.ok(!host.textContent?.includes("bob history"));
+  assert.ok(!host.querySelector('.native-season-share'));
+});
+
+test("sharing and copy-link controls are admin-only without disturbing a current unsaved draft", async () => {
+  let admin = false;
+  const view = () => <SeasonSheets subject="alice" name="Alice" isAdmin={admin} history={null} onHistory={() => {}} />;
+  await render(view()); await edit('private current draft');
+  assert.ok(!host.querySelector('.native-season-share'));
+  assert.ok(!host.textContent?.includes('Copy link'));
+  assert.ok(!host.textContent?.includes('Share 2026 link'));
+  admin = true; fixture.admin = true; await render(view());
+  assert.ok(host.querySelector('.native-season-share'));
+  assert.ok(host.textContent?.includes('Copy link'));
+  assert.ok([...host.querySelectorAll('button')].some(button => button.textContent === '2025 history (read-only)'));
+  assert.equal(answers()[0].value, 'private current draft');
+  admin = false; fixture.admin = false; await render(view());
+  assert.ok(!host.querySelector('.native-season-share'));
+  assert.equal(answers()[0].value, 'private current draft');
+});
+
+test("missing, malformed and mismatched session claims cannot expose history/admin UI", async () => {
+  for (const claims of [{}, { sub: 'alice', 'cognito:groups': 'admin' },
+    { sub: 'bob', 'cognito:groups': ['admin'] }]) {
+    await render(<div />); fixture.calls = []; fixture.sessionClaims = claims;
+    window.history.replaceState(null, '', '#/sheets/2025');
+    await render();
+    assert.equal(answers().length, 17);
+    assert.ok(!host.textContent?.includes('2025 history'));
+    assert.ok(!host.querySelector('.admin-panel'));
+    assert.ok(!host.querySelector('.native-season-share'));
+    assert.ok(fixture.calls.every(call => call.args.year === 2026));
+  }
 });
 test("history URL retains explicit person/year across refresh; unsupported years default to 2026", async () => {
   fixture.admin = true;

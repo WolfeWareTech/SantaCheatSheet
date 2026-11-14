@@ -67,6 +67,9 @@ export function service(store: Store, now = () => new Date().toISOString()) {
       const target = a.subject === undefined || a.subject === null ? subject : a.subject;
       if (typeof target !== 'string' || !target || (target !== subject && !admin)) throw new Rejected('forbidden');
       if ('owner' in a || 'ownerSubject' in a || 'participantId' in a || 'groups' in a) throw new Rejected('forbidden');
+      // Owner decision: previous-year answers are admin-only, even for their
+      // original owner. Reject before reading history or seasonal storage.
+      if (event.field === 'seasonSheet' && year < LAUNCH_YEAR && !admin) throw new Rejected('forbidden');
       const season = await store.season(year) ?? (year === LAUNCH_YEAR
         ? { year, state: 'open' as const, revision: 0, deadline: null } : null);
       if (event.field === 'seasonState') {
