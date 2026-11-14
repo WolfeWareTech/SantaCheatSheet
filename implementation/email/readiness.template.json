@@ -1,0 +1,88 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Optional family email preparation with sending disabled and aggregate delivery metrics only.",
+  "Metadata": {
+    "AWSToolsMetrics": {"AWSAgentToolkit": "aws-cloudformation@3"},
+    "com.aws.cloudformation.Context": {
+      "must": ["Never deploy without an active finite cloud lease", "Do not modify existing identities, DNS, Cognito or application roles"],
+      "ref": [{"at": "README.md", "has": "readiness gates, privacy and rollback", "scope": "this package"}]
+    }
+  },
+  "Parameters": {
+    "ApprovedSenderIdentityName": {
+      "Type": "String", "NoEcho": true,
+      "MinLength": 3, "MaxLength": 253,
+      "AllowedPattern": "^[a-zA-Z0-9][a-zA-Z0-9.@_+-]*[a-zA-Z0-9]$",
+      "Description": "Existing owner-approved SES identity name; no default and never inferred from app admins."
+    },
+    "ApprovedFromAddress": {
+      "Type": "String", "NoEcho": true,
+      "MinLength": 5, "MaxLength": 254,
+      "AllowedPattern": "^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,63}$",
+      "Description": "Owner-approved monitored sender mailbox covered by the selected identity."
+    }
+  },
+  "Conditions": {"SelectedRegion": {"Fn::Equals": [{"Ref": "AWS::Region"}, "us-east-2"]}},
+  "Resources": {
+    "EmailConfiguration": {
+      "Type": "AWS::SES::ConfigurationSet", "Condition": "SelectedRegion",
+      "Metadata": {"com.aws.cloudformation.Context": {
+        "why": "Isolate optional invitation email from existing recovery mail",
+        "must": ["Keep sending disabled until separate reviewed activation", "No identity default configuration association"]
+      }},
+      "Properties": {
+        "Name": {"Fn::Sub": "${AWS::StackName}-email"},
+        "SendingOptions": {"SendingEnabled": false},
+        "DeliveryOptions": {"TlsPolicy": "REQUIRE"},
+        "ReputationOptions": {"ReputationMetricsEnabled": true},
+        "SuppressionOptions": {"SuppressedReasons": ["BOUNCE", "COMPLAINT"]}
+      }
+    },
+    "DeliveryMetrics": {
+      "Type": "AWS::SES::ConfigurationSetEventDestination", "Condition": "SelectedRegion",
+      "Metadata": {"com.aws.cloudformation.Context": {
+        "why": "Observe counts without transporting raw events or recipient data to logs",
+        "must": ["Use only the SES configuration-set auto-tag dimension", "No emailHeader, recipient tags, open/click tracking or raw log route"]
+      }},
+      "Properties": {
+        "ConfigurationSetName": {"Ref": "EmailConfiguration"},
+        "EventDestination": {
+          "Name": "aggregate-delivery", "Enabled": true,
+          "MatchingEventTypes": ["SEND", "DELIVERY", "BOUNCE", "COMPLAINT", "REJECT", "RENDERING_FAILURE", "DELIVERY_DELAY"],
+          "CloudWatchDestination": {"DimensionConfigurations": [{
+            "DimensionName": "ses:configuration-set", "DimensionValueSource": "messageTag",
+            "DefaultDimensionValue": {"Ref": "EmailConfiguration"}
+          }]}
+        }
+      }
+    },
+    "UnattachedSenderPolicy": {
+      "Type": "AWS::IAM::ManagedPolicy", "Condition": "SelectedRegion",
+      "Metadata": {"com.aws.cloudformation.Context": {
+        "why": "Prepare one sender permission without granting it to any application or human",
+        "must": ["No Roles, Users or Groups attachments in this phase", "No wildcard send actions or sender identity resources", "No Cognito permissions"]
+      }},
+      "Properties": {
+        "ManagedPolicyName": {"Fn::Sub": "${AWS::StackName}-sender"},
+        "Description": "Unattached permission for a later reviewed server-only sender.",
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [{
+            "Sid": "OnlyApprovedSenderInSelectedRegion", "Effect": "Allow", "Action": ["ses:SendEmail"],
+            "Resource": [
+              {"Fn::Sub": "arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:identity/${ApprovedSenderIdentityName}"},
+              {"Fn::Sub": "arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:configuration-set/${EmailConfiguration}"}
+            ],
+            "Condition": {"StringEquals": {
+              "ses:FromAddress": {"Ref": "ApprovedFromAddress"}, "aws:RequestedRegion": "us-east-2"
+            }}
+          }]
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "ConfigurationSetName": {"Condition": "SelectedRegion", "Description": "Explicit configuration set for a later server-side sender.", "Value": {"Ref": "EmailConfiguration"}},
+    "UnattachedPolicyArn": {"Condition": "SelectedRegion", "Description": "Prepared only; no role receives this permission.", "Value": {"Ref": "UnattachedSenderPolicy"}}
+  }
+}
